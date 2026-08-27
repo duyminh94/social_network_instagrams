@@ -17,7 +17,9 @@ import { useSocket } from '../../hooks/useSocket'
 import { getConversations, createConversation, getMessages, sendMessage, sendMediaMessage, deleteGroup } from '../../features/chat/chatAPI'
 import api from '../../services/api'
 import Avatar from '../common/Avatar'
-import styles from './MiniChat.module.css'
+import Box from '@mui/material/Box'
+import * as s from './miniChatStyles'
+import { ListSkeleton } from '../common/Skeletons'
 
 // Hiện thời gian dạng "3 tuần", "2 ngày", "5 phút"
 function timeAgo(dateStr) {
@@ -227,7 +229,7 @@ export default function MiniChat() {
   var isOnChatPage = location.pathname.startsWith('/chat')
 
   // Lấy danh sách conversation
-  var { data: convsData } = useQuery({
+  var { data: convsData, isLoading: convsLoading } = useQuery({
     queryKey: ['conversations'],
     queryFn: function () { return getConversations().then(function (r) { return r.data }) },
     enabled: !!user,
@@ -602,23 +604,23 @@ export default function MiniChat() {
   // Trạng thái collapsed: pill button
   if (view === 'collapsed') {
     return (
-      <div className={styles.wrapper}>
-        <button className={styles.pill} onClick={openList}>
+      <Box sx={s.wrapper}>
+        <Box component="button" type="button" sx={s.pill} onClick={openList}>
           <SendIcon />
-          <span className={styles.pillText}>Tin nhắn</span>
+          <Box component="span" sx={s.pillText}>Tin nhắn</Box>
           {recentAvatars.length > 0 && (
-            <div className={styles.pillAvatars}>
+            <Box sx={s.pillAvatars}>
               {recentAvatars.map(function (a, i) {
                 return (
-                  <div key={i} className={styles.pillAvatar} style={{ zIndex: recentAvatars.length - i }}>
+                  <Box key={i} sx={s.pillAvatar} style={{ zIndex: recentAvatars.length - i }}>
                     <Avatar src={a.src} username={a.name} size="sm" />
-                  </div>
+                  </Box>
                 )
               })}
-            </div>
+            </Box>
           )}
-        </button>
-      </div>
+        </Box>
+      </Box>
     )
   }
 
@@ -648,411 +650,401 @@ export default function MiniChat() {
     }))
 
     return (
-			<div className={styles.wrapper}>
-				<div className={styles.panel}>
-					{/* Header */}
-					<div className={styles.panelHeader}>
-						<button className={styles.iconBtn} onClick={openList}>
-							<BackIcon />
-						</button>
-						{!isGroup ? (
-							<Link to={`/${other?.username}`} className={styles.chatHeaderInfo}>
-								<Avatar
-									src={avatarSrc}
-									username={displayName}
-									size="sm"
-									isOnline={
-										!isGroup && !!onlineUsers?.has(String(other?._id || ""))
-									}
-								/>
-								<span className={styles.panelTitle}>{displayName}</span>
-							</Link>
-						) : (
-							<div className={styles.chatHeaderInfo}>
-								<Avatar
-									src={avatarSrc}
-									username={displayName}
-									size="sm"
-									isOnline={
-										!isGroup && !!onlineUsers?.has(String(other?._id || ""))
-									}
-								/>
-								<span className={styles.panelTitle}>{displayName}</span>
-							</div>
-						)}
-						<div className={styles.headerActions}>
-							{isGroupCreator && (
-								<button
-									className={styles.iconBtn}
-									title="Xóa nhóm"
-									onClick={handleMiniDeleteGroup}
-								>
-									<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-										<path d="M3 6h18" />
-										<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-										<path d="M10 11v6M14 11v6" />
-										<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-									</svg>
-								</button>
-							)}
-							<button
-								className={styles.iconBtn}
-								title="Mở trang chat đầy đủ"
-								onClick={function () {
-									navigate("/chat/" + conv._id)
-								}}
-							>
-								<FullscreenIcon />
-							</button>
-							<button className={styles.iconBtn} onClick={close}>
-								<CloseIcon />
-							</button>
-						</div>
-					</div>
+      <Box sx={s.wrapper}>
+        <Box sx={s.panel}>
+          {/* Header */}
+          <Box sx={s.panelHeader}>
+            <Box component="button" type="button" sx={s.iconBtn(false)} onClick={openList}>
+              <BackIcon />
+            </Box>
+            {!isGroup ? (
+              <Box component={Link} to={`/${other?.username}`} sx={s.chatHeaderInfo}>
+                <Avatar
+                  src={avatarSrc}
+                  username={displayName}
+                  size="sm"
+                  isOnline={!isGroup && !!onlineUsers?.has(String(other?._id || ''))}
+                />
+                <Box component="span" sx={s.panelTitle}>{displayName}</Box>
+              </Box>
+            ) : (
+              <Box sx={s.chatHeaderInfo}>
+                <Avatar
+                  src={avatarSrc}
+                  username={displayName}
+                  size="sm"
+                  isOnline={!isGroup && !!onlineUsers?.has(String(other?._id || ''))}
+                />
+                <Box component="span" sx={s.panelTitle}>{displayName}</Box>
+              </Box>
+            )}
+            <Box sx={s.headerActions}>
+              {isGroupCreator && (
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.iconBtn(false)}
+                  title="Xóa nhóm"
+                  onClick={handleMiniDeleteGroup}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </Box>
+              )}
+              <Box
+                component="button"
+                type="button"
+                sx={s.iconBtn(false)}
+                title="Mở trang chat đầy đủ"
+                onClick={function () { navigate('/chat/' + conv._id) }}
+              >
+                <FullscreenIcon />
+              </Box>
+              <Box component="button" type="button" sx={s.iconBtn(false)} onClick={close}>
+                <CloseIcon />
+              </Box>
+            </Box>
+          </Box>
 
-					{/* Khu vực tin nhắn */}
-					<div className={styles.miniMessages}>
-						{miniMessages.map(function (msg, idx) {
-							var isMine = String(msg.senderId?._id || msg.senderId) === myId
-							var senderId = String(msg.senderId?._id || msg.senderId || '')
-							var isMedia =
-								msg.messageType === "image" || msg.messageType === "video"
+          {/* Khu vực tin nhắn */}
+          <Box sx={s.miniMessages}>
+            {miniMessages.map(function (msg, idx) {
+              var isMine = String(msg.senderId?._id || msg.senderId) === myId
+              var senderId = String(msg.senderId?._id || msg.senderId || '')
+              var isMedia = msg.messageType === 'image' || msg.messageType === 'video'
 
-							// Avatar logic: chỉ hiện avatar ở tin nhắn cuối cùng của một "cụm" cùng người gửi
-							var nextMsg = miniMessages[idx + 1]
-							var nextSenderId = String(nextMsg?.senderId?._id || nextMsg?.senderId || '')
-							var isLastInGroup = !nextMsg || nextSenderId !== senderId
+              // Avatar logic: chỉ hiện avatar ở tin nhắn cuối cùng của một "cụm" cùng người gửi
+              var nextMsg = miniMessages[idx + 1]
+              var nextSenderId = String(nextMsg?.senderId?._id || nextMsg?.senderId || '')
+              var isLastInGroup = !nextMsg || nextSenderId !== senderId
 
-							var senderInfo = msg.senderId?.username
-								? msg.senderId
-								: activeMiniConv?.members?.find(function (m) {
-										return String(m.userId?._id || '') === senderId
-									})?.userId
+              var senderInfo = msg.senderId?.username
+                ? msg.senderId
+                : activeMiniConv?.members?.find(function (m) {
+                    return String(m.userId?._id || '') === senderId
+                  })?.userId
 
-							return (
-								<div
-									key={msg._id}
-									className={
-										styles.miniRow +
-										" " +
-										(isMine ? styles.miniRowMine : styles.miniRowOther)
-									}
-								>
-									{!isMine && (
-										isLastInGroup
-											? <div className={styles.miniAvatarSlot}><Avatar src={senderInfo?.avatarUrl} username={senderInfo?.username} size="sm" /></div>
-											: <div className={styles.miniAvatarGap} />
-									)}
-									{/* Nút Reply — hiện khi hover, bên trái với tin mình, bên phải với tin người khác */}
-									{isMine && (
-										<button
-											className={styles.miniReplyBtn}
-											onClick={function () { setMiniReplyTarget(msg); setShowMiniEmoji(false) }}
-											title="Trả lời"
-										>↩</button>
-									)}
-									<div className={styles.miniBubbleWrap}>
-										<div
-											className={
-												styles.miniBubble +
-												" " +
-												(isMine
-													? styles.miniBubbleMine
-													: styles.miniBubbleOther) +
-												(isMedia ? " " + styles.miniBubbleMedia : "")
-											}
-										>
-											{/* Preview tin nhắn đang được reply */}
-											{msg.replyToId && (
-												<div className={styles.miniReplyPreview}>
-													<span>{getMiniMsgPreview(msg.replyToId)}</span>
-												</div>
-											)}
-											{msg.storyMediaUrl && (
-												<div className={styles.miniStoryReplyPreview}>
-													{msg.storyMediaType === "video" ? (
-														<video
-															src={msg.storyMediaUrl}
-															className={styles.miniStoryReplyMedia}
-															muted
-														/>
-													) : (
-														<img
-															src={msg.storyMediaUrl}
-															alt=""
-															className={styles.miniStoryReplyMedia}
-														/>
-													)}
-												</div>
-											)}
-											{msg.messageType === "image" ? (
-												<img
-													src={msg.content}
-													alt=""
-													className={styles.miniMsgImage}
-												/>
-											) : msg.messageType === "video" ? (
-												<video
-													src={msg.content}
-													controls
-													className={styles.miniMsgVideo}
-												/>
-											) : (
-												msg.content
-											)}
-										</div>
-										{isMine && idx === miniLastMyMsgIdx && miniHasReaders && (
-											<div className={styles.miniReadReceipt}>Đã xem</div>
-										)}
-									</div>
-									{!isMine && (
-										<button
-											className={styles.miniReplyBtn}
-											onClick={function () { setMiniReplyTarget(msg); setShowMiniEmoji(false) }}
-											title="Trả lời"
-										>↩</button>
-									)}
-								</div>
-							)
-						})}
-						{isMiniTyping && (
-							<div className={styles.miniRow + " " + styles.miniRowOther}>
-								<div
-									className={
-										styles.miniBubble +
-										" " +
-										styles.miniBubbleOther +
-										" " +
-										styles.miniTypingBubble
-									}
-								>
-									<span className={styles.miniTypingDot} />
-									<span className={styles.miniTypingDot} />
-									<span className={styles.miniTypingDot} />
-								</div>
-							</div>
-						)}
-						<div ref={miniEndRef} />
-					</div>
+              return (
+                <Box key={msg._id} sx={s.miniRow(isMine)}>
+                  {!isMine && (
+                    isLastInGroup
+                      ? <Box sx={s.miniAvatarSlot}><Avatar src={senderInfo?.avatarUrl} username={senderInfo?.username} size="sm" /></Box>
+                      : <Box sx={s.miniAvatarGap} />
+                  )}
+                  {/* Nút Reply — hiện khi hover, bên trái với tin mình, bên phải với tin người khác */}
+                  {isMine && (
+                    <Box
+                      component="button"
+                      type="button"
+                      className="miniReplyBtn"
+                      sx={s.miniReplyBtn}
+                      onClick={function () { setMiniReplyTarget(msg); setShowMiniEmoji(false) }}
+                      title="Trả lời"
+                    >↩</Box>
+                  )}
+                  <Box sx={s.miniBubbleWrap(isMine)}>
+                    <Box sx={s.miniBubble(isMine, isMedia)}>
+                      {/* Preview tin nhắn đang được reply */}
+                      {msg.replyToId && (
+                        <Box sx={s.miniReplyPreview(isMine)}>
+                          <span>{getMiniMsgPreview(msg.replyToId)}</span>
+                        </Box>
+                      )}
+                      {msg.storyMediaUrl && (
+                        <Box sx={s.miniStoryReplyPreview}>
+                          {msg.storyMediaType === 'video' ? (
+                            <Box component="video" src={msg.storyMediaUrl} sx={s.miniStoryReplyMedia} muted />
+                          ) : (
+                            <Box component="img" src={msg.storyMediaUrl} alt="" sx={s.miniStoryReplyMedia} />
+                          )}
+                        </Box>
+                      )}
+                      {msg.messageType === 'image' ? (
+                        <Box component="img" src={msg.content} alt="" sx={s.miniMsgImage} />
+                      ) : msg.messageType === 'video' ? (
+                        <Box component="video" src={msg.content} controls sx={s.miniMsgVideo} />
+                      ) : (
+                        msg.content
+                      )}
+                    </Box>
+                    {isMine && idx === miniLastMyMsgIdx && miniHasReaders && (
+                      <Box sx={s.miniReadReceipt}>Đã xem</Box>
+                    )}
+                  </Box>
+                  {!isMine && (
+                    <Box
+                      component="button"
+                      type="button"
+                      className="miniReplyBtn"
+                      sx={s.miniReplyBtn}
+                      onClick={function () { setMiniReplyTarget(msg); setShowMiniEmoji(false) }}
+                      title="Trả lời"
+                    >↩</Box>
+                  )}
+                </Box>
+              )
+            })}
+            {isMiniTyping && (
+              <Box sx={s.miniRow(false)}>
+                <Box sx={s.miniTypingBubble}>
+                  <Box component="span" sx={s.miniTypingDot(0)} />
+                  <Box component="span" sx={s.miniTypingDot(1)} />
+                  <Box component="span" sx={s.miniTypingDot(2)} />
+                </Box>
+              </Box>
+            )}
+            <div ref={miniEndRef} />
+          </Box>
 
-					{/* Input bar + emoji + file */}
-					<div className={styles.miniInputWrap}>
-						{/* Reply composer — hiện khi đang reply một tin nhắn */}
-						{miniReplyTarget && (
-							<div className={styles.miniReplyComposer}>
-								<div className={styles.miniReplyComposerText}>
-									<strong>Trả lời {getMiniSenderName(miniReplyTarget)}</strong>
-									<span>{getMiniMsgPreview(miniReplyTarget)}</span>
-								</div>
-								<button
-									className={styles.miniReplyCancelBtn}
-									onClick={function () { setMiniReplyTarget(null) }}
-								>×</button>
-							</div>
-						)}
-						<input
-							type="file"
-							ref={miniFileInputRef}
-							style={{ display: "none" }}
-							accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm"
-							onChange={handleMiniFileSelect}
-						/>
-						{showMiniEmoji && (
-							<div className={styles.miniEmojiWrap} ref={miniEmojiRef}>
-								<EmojiPicker
-									theme="dark"
-									width={300}
-									height={340}
-									previewConfig={{ showPreview: false }}
-									onEmojiClick={handleMiniEmojiClick}
-								/>
-							</div>
-						)}
-						{miniBlockState.isBlocked ? (
-							<div style={{ padding: '14px 16px', textAlign: 'center' }}>
-								<p style={{ fontWeight: 600, color: 'var(--ink)', margin: '0 0 4px', fontSize: 13 }}>
-									{miniBlockState.iBlocked ? 'Bạn đã chặn người dùng này' : 'Bạn không thể nhắn tin cho người dùng này'}
-								</p>
-								<p style={{ color: 'var(--ink-muted)', fontSize: 12, margin: '0 0 10px', lineHeight: 1.4 }}>
-									Các bạn sẽ không thể nhắn tin cho nhau trong đoạn chat này.
-								</p>
-								{miniBlockState.iBlocked && (
-									<button type="button" onClick={handleMiniUnblock} style={{ width: '100%', padding: '9px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-										Bỏ chặn
-									</button>
-								)}
-							</div>
-						) : (
-							<div className={styles.miniInputBar}>
-							<button
-								className={
-									styles.iconBtn +
-									" " +
-									(showMiniEmoji ? styles.iconBtnActive : "")
-								}
-								onClick={function () {
-									setShowMiniEmoji(function (v) {
-										return !v
-									})
-								}}
-							>
-								<EmojiIcon />
-							</button>
-							<form className={styles.miniInputForm} onSubmit={handleMiniSend}>
-								<input
-									className={styles.miniInput}
-									placeholder="Nhắn tin..."
-									value={miniInput}
-									onChange={handleMiniInputChange}
-								/>
-							</form>
-							<button
-								className={styles.iconBtn}
-								onClick={function () {
-									miniFileInputRef.current?.click()
-								}}
-								disabled={isUploadingMedia}
-								title="Gửi ảnh/video"
-							>
-								<ImageIcon />
-							</button>
-							<button
-								className={styles.miniSendBtn}
-								onClick={handleMiniSend}
-								disabled={!miniInput.trim() || miniSending}
-							>
-								<SendIcon />
-							</button>
-						</div>
-						)}
-					</div>
-				</div>
-			</div>
-		)
+          {/* Input bar + emoji + file */}
+          <Box sx={s.miniInputWrap}>
+            {/* Reply composer — hiện khi đang reply một tin nhắn */}
+            {miniReplyTarget && (
+              <Box sx={s.miniReplyComposer}>
+                <Box sx={s.miniReplyComposerText}>
+                  <strong>Trả lời {getMiniSenderName(miniReplyTarget)}</strong>
+                  <span>{getMiniMsgPreview(miniReplyTarget)}</span>
+                </Box>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.miniReplyCancelBtn}
+                  onClick={function () { setMiniReplyTarget(null) }}
+                >×</Box>
+              </Box>
+            )}
+            <input
+              type="file"
+              ref={miniFileInputRef}
+              style={{ display: 'none' }}
+              accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm"
+              onChange={handleMiniFileSelect}
+            />
+            {showMiniEmoji && (
+              <Box sx={s.miniEmojiWrap} ref={miniEmojiRef}>
+                <EmojiPicker
+                  theme="dark"
+                  width={300}
+                  height={340}
+                  previewConfig={{ showPreview: false }}
+                  onEmojiClick={handleMiniEmojiClick}
+                />
+              </Box>
+            )}
+            {miniBlockState.isBlocked ? (
+              <Box sx={{ py: 1.75, px: 2, textAlign: 'center' }}>
+                <Box component="p" sx={{ fontWeight: 600, color: 'text.primary', m: 0, mb: .5, fontSize: 13 }}>
+                  {miniBlockState.iBlocked ? 'Bạn đã chặn người dùng này' : 'Bạn không thể nhắn tin cho người dùng này'}
+                </Box>
+                <Box component="p" sx={{ color: 'text.secondary', fontSize: 12, m: 0, mb: 1.25, lineHeight: 1.4 }}>
+                  Các bạn sẽ không thể nhắn tin cho nhau trong đoạn chat này.
+                </Box>
+                {miniBlockState.iBlocked && (
+                  <Box
+                    component="button"
+                    type="button"
+                    onClick={handleMiniUnblock}
+                    sx={{
+                      width: '100%',
+                      p: 1.125,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      bgcolor: 'background.paper',
+                      color: 'text.primary',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Bỏ chặn
+                  </Box>
+                )}
+              </Box>
+            ) : (
+              <Box sx={s.miniInputBar}>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.iconBtn(showMiniEmoji)}
+                  onClick={function () { setShowMiniEmoji(function (v) { return !v }) }}
+                >
+                  <EmojiIcon />
+                </Box>
+                <Box component="form" sx={s.miniInputForm} onSubmit={handleMiniSend}>
+                  <Box
+                    component="input"
+                    sx={s.miniInput}
+                    placeholder="Nhắn tin..."
+                    value={miniInput}
+                    onChange={handleMiniInputChange}
+                  />
+                </Box>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.iconBtn(false)}
+                  onClick={function () { miniFileInputRef.current?.click() }}
+                  disabled={isUploadingMedia}
+                  title="Gửi ảnh/video"
+                >
+                  <ImageIcon />
+                </Box>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.miniSendBtn}
+                  onClick={handleMiniSend}
+                  disabled={!miniInput.trim() || miniSending}
+                >
+                  <SendIcon />
+                </Box>
+              </Box>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    )
   }
 
   // Trạng thái 'new': màn hình tạo tin nhắn mới
   if (view === 'new') {
     return (
-      <div className={styles.wrapper}>
-        <div className={styles.panel}>
+      <Box sx={s.wrapper}>
+        <Box sx={s.panel}>
           {/* Header */}
-          <div className={styles.panelHeader}>
-            <button className={styles.iconBtn} onClick={function () { setView('list') }}>
+          <Box sx={s.panelHeader}>
+            <Box component="button" type="button" sx={s.iconBtn(false)} onClick={function () { setView('list') }}>
               <BackIcon />
-            </button>
-            <span className={styles.panelTitle}>New message</span>
-            <button className={styles.iconBtn} onClick={close}>
+            </Box>
+            <Box component="span" sx={s.panelTitle}>New message</Box>
+            <Box component="button" type="button" sx={s.iconBtn(false)} onClick={close}>
               <CloseIcon />
-            </button>
-          </div>
+            </Box>
+          </Box>
 
           {/* Ô "Tới:" + user đã chọn */}
-          <div className={styles.toRow}>
-            <span className={styles.toLabel}>Tới:</span>
+          <Box sx={s.toRow}>
+            <Box component="span" sx={s.toLabel}>Tới:</Box>
             {selectedUsers.map(function (selectedUser) {
               return (
-                <div key={selectedUser._id} className={styles.selectedChip}>
+                <Box key={selectedUser._id} sx={s.selectedChip}>
                   <span>{selectedUser.fullName || selectedUser.username}</span>
-                  <button
-                    className={styles.chipRemove}
+                  <Box
+                    component="button"
+                    type="button"
+                    sx={s.chipRemove}
                     onClick={function () { toggleUser(selectedUser) }}
-                  >×</button>
-                </div>
+                  >×</Box>
+                </Box>
               )
             })}
-            <input
-              className={styles.toInput}
+            <Box
+              component="input"
+              sx={s.toInput}
               placeholder="Tìm kiếm..."
               value={searchQuery}
               onChange={function (e) { setSearchQuery(e.target.value) }}
               autoFocus
             />
-          </div>
+          </Box>
 
           {selectedUsers.length > 1 && (
-            <div className={styles.groupNameRow}>
-              <input
-                className={styles.groupNameInput}
+            <Box sx={s.groupNameRow}>
+              <Box
+                component="input"
+                sx={s.groupNameInput}
                 placeholder="Tên nhóm (không bắt buộc)"
                 value={miniGroupName}
                 onChange={function (e) { setMiniGroupName(e.target.value) }}
               />
-            </div>
+            </Box>
           )}
 
           {/* Danh sách gợi ý */}
-          <div className={styles.suggestionList}>
+          <Box sx={s.suggestionList}>
             {!searchQuery.trim() && (
-              <div className={styles.suggestionLabel}>Gợi ý</div>
+              <Box sx={s.suggestionLabel}>Gợi ý</Box>
             )}
             {suggestions.map(function (u) {
               var isSelected = selectedUsers.some(function (item) {
                 return String(item._id) === String(u._id)
               })
               return (
-                <div
+                <Box
                   key={u._id}
-                  className={styles.suggestionItem}
+                  sx={s.suggestionItem}
                   onClick={function () { toggleUser(u) }}
                 >
                   <Avatar src={u.avatarUrl} username={u.username} size="md" />
-                  <div className={styles.suggestionInfo}>
-                    <div className={styles.suggestionName}>{u.fullName || u.username}</div>
-                    <div className={styles.suggestionUsername}>{u.username}</div>
-                  </div>
-                  <div className={styles.checkbox + ' ' + (isSelected ? styles.checkboxSelected : '')}>
+                  <Box sx={s.suggestionInfo}>
+                    <Box sx={s.suggestionName}>{u.fullName || u.username}</Box>
+                    <Box sx={s.suggestionUsername}>{u.username}</Box>
+                  </Box>
+                  <Box sx={s.checkbox(isSelected)}>
                     {isSelected && (
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     )}
-                  </div>
-                </div>
+                  </Box>
+                </Box>
               )
             })}
-          </div>
+          </Box>
 
           {/* Nút Chat */}
-          <div className={styles.chatBtnWrap}>
-            <button
-              className={styles.chatBtn}
+          <Box sx={s.chatBtnWrap}>
+            <Box
+              component="button"
+              type="button"
+              sx={s.chatBtn}
               disabled={selectedUsers.length === 0 || isCreatingMiniConversation}
               onClick={handleStartChat}
             >
               {isCreatingMiniConversation ? 'Đang tạo...' : selectedUsers.length > 1 ? 'Tạo nhóm' : 'Chat'}
-            </button>
-          </div>
-        </div>
-      </div>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
     )
   }
 
   // Trạng thái 'list': danh sách conversation
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.panel}>
+    <Box sx={s.wrapper}>
+      <Box sx={s.panel}>
         {/* Header */}
-        <div className={styles.panelHeader}>
-          <span className={styles.panelTitle}>Tin nhắn</span>
-          <div className={styles.headerActions}>
-            <button
-              className={styles.iconBtn}
+        <Box sx={s.panelHeader}>
+          <Box component="span" sx={s.panelTitle}>Tin nhắn</Box>
+          <Box sx={s.headerActions}>
+            <Box
+              component="button"
+              type="button"
+              sx={s.iconBtn(false)}
               title="Mở trang chat"
               onClick={function () { navigate('/chat') }}
             >
               <FullscreenIcon />
-            </button>
-            <button className={styles.iconBtn} onClick={close}>
+            </Box>
+            <Box component="button" type="button" sx={s.iconBtn(false)} onClick={close}>
               <CloseIcon />
-            </button>
-          </div>
-        </div>
+            </Box>
+          </Box>
+        </Box>
 
         {/* Danh sách conversation */}
-        <div className={styles.convList}>
-          {conversations.length === 0 && (
-            <div className={styles.emptyMsg}>Chưa có tin nhắn nào</div>
+        <Box sx={s.convList}>
+          {/* Đang tải thì hiện khung xương — trước đây hiện thẳng "Chưa có tin nhắn nào",
+              gây hiểu nhầm là không có hội thoại nào trong khi thực ra chưa tải xong */}
+          {convsLoading && <ListSkeleton count={4} avatarSize={40} />}
+
+          {!convsLoading && conversations.length === 0 && (
+            <Box sx={s.emptyMsg}>Chưa có tin nhắn nào</Box>
           )}
           {conversations.map(function (conv) {
             var isGroup = conv.type === 'group'
@@ -1061,7 +1053,6 @@ export default function MiniChat() {
             var avatarSrc = isGroup ? conv.avatarUrl : other?.avatarUrl
             var lastMsg = conv.lastMessage
             var unread = conv.isUnread && activeMiniConv?._id !== conv._id
-            var statusClass = unread ? styles.unread : styles.read
             // "Bạn:" chỉ hiện khi tin cuối do mình gửi
             var lastSenderId = String(lastMsg?.senderId?._id || lastMsg?.senderId || '')
             var isMineMsg = lastSenderId === myId
@@ -1072,30 +1063,30 @@ export default function MiniChat() {
             var timeStr = timeAgo(conv.lastActivityAt || lastMsg?.createdAt)
 
             return (
-              <div
+              <Box
                 key={conv._id}
-                className={styles.convItem + ' ' + statusClass}
+                sx={s.convItem(unread)}
                 onClick={function () { handleConvClick(conv) }}
               >
                 <Avatar src={avatarSrc} username={displayName} size="md" isOnline={!isGroup && !!onlineUsers?.has(String(other?._id || ''))} />
-                <div className={styles.convInfo}>
-                  <div className={styles.convName}>{displayName}</div>
-                  <div className={styles.convPreview}>
-                    <span className={styles.previewText}>{preview}</span>
-                    {timeStr && <span className={styles.previewDot}> · {timeStr}</span>}
-                  </div>
-                </div>
-                {unread && <span className={styles.unreadDot} />}
-              </div>
+                <Box sx={s.convInfo}>
+                  <Box sx={s.convName(unread)}>{displayName}</Box>
+                  <Box sx={s.convPreview(unread)}>
+                    <Box component="span" className="previewText">{preview}</Box>
+                    {timeStr && <Box component="span" className="previewDot"> · {timeStr}</Box>}
+                  </Box>
+                </Box>
+                {unread && <Box component="span" sx={s.unreadDot} />}
+              </Box>
             )
           })}
-        </div>
+        </Box>
 
         {/* Nút soạn tin nhắn mới */}
-        <button className={styles.composeBtn} onClick={openNew}>
+        <Box component="button" type="button" sx={s.composeBtn} onClick={openNew}>
           <ComposeIcon />
-        </button>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   )
 }

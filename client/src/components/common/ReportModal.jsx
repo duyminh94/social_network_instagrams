@@ -1,14 +1,32 @@
 // components/common/ReportModal.jsx
-// Modal báo cáo vi phạm dùng cho user.
+// Modal báo cáo vi phạm dùng cho user — dựng trên Dialog của MUI
 //
-// targetType: 'user' | 'post' | 'reel' | 'story' | 'comment'
-// targetId: id của đối tượng bị báo cáo
+// Props giữ nguyên như bản cũ để 6 chỗ đang gọi không phải sửa:
+//   targetType - 'user' | 'post' | 'reel' | 'story' | 'comment'
+//   targetId   - id của đối tượng bị báo cáo
+//   onClose    - đóng modal
+//   onReported - gọi sau khi gửi báo cáo thành công
+//
+// Danh sách lý do dùng RadioGroup của MUI thay cho <input type="radio"> viết tay:
+//   MUI tự lo phần nhãn bấm được, trạng thái focus và điều hướng bằng bàn phím
 
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import IconButton from '@mui/material/IconButton'
+import CloseIcon from '@mui/icons-material/Close'
+import RadioGroup from '@mui/material/RadioGroup'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Radio from '@mui/material/Radio'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
+import Box from '@mui/material/Box'
 import api from '../../services/api'
 import { useLanguage } from '../../i18n/LanguageContext'
-import styles from './ReportModal.module.css'
+import Button from './Button'
 
 export default function ReportModal({ targetId, targetType, onClose, onReported }) {
   var { t } = useLanguage()
@@ -48,55 +66,64 @@ export default function ReportModal({ targetId, targetType, onClose, onReported 
   }
 
   return (
-    <div className={styles.overlay} onClick={function (e) { e.stopPropagation(); if (e.target === e.currentTarget) onClose() }}>
-      <div className={styles.modal}>
-        <div className={styles.header}>
-          <h2>{t.report.title}</h2>
-          <button type="button" className={styles.closeBtn} onClick={onClose}>×</button>
-        </div>
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pr: 1 }}>
+        <Typography component="span" sx={{ fontSize: 16, fontWeight: 600 }}>
+          {t.report.title}
+        </Typography>
+        <IconButton onClick={onClose} size="small" aria-label={t.report.cancel}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
 
-        <form onSubmit={handleSubmit}>
-          <div className={styles.body}>
-            <p className={styles.helpText}>{t.report.helpText}</p>
+      {/* Bọc form quanh cả nội dung và nút để nút submit vẫn kích hoạt được form */}
+      <Box component="form" onSubmit={handleSubmit}>
+        <DialogContent dividers>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1.5 }}>
+            {t.report.helpText}
+          </Typography>
 
-            <div className={styles.reasonList}>
-              {reasons.map(function (item) {
-                return (
-                  <label key={item.value} className={styles.reasonItem}>
-                    <input
-                      type="radio"
-                      name="reason"
-                      value={item.value}
-                      checked={reason === item.value}
-                      onChange={function () { setReason(item.value) }}
-                    />
-                    <span>{item.label}</span>
-                  </label>
-                )
-              })}
-            </div>
+          <RadioGroup
+            value={reason}
+            onChange={function (e) { setReason(e.target.value) }}
+          >
+            {reasons.map(function (item) {
+              return (
+                <FormControlLabel
+                  key={item.value}
+                  value={item.value}
+                  control={<Radio size="small" />}
+                  label={item.label}
+                  slotProps={{ typography: { sx: { fontSize: 14 } } }}
+                />
+              )
+            })}
+          </RadioGroup>
 
-            <textarea
-              className={styles.textarea}
-              value={description}
-              onChange={function (e) { setDescription(e.target.value) }}
-              placeholder={t.report.descriptionPlaceholder}
-              rows={3}
-              maxLength={300}
-            />
-            <div className={styles.count}>{description.length} / 300</div>
-          </div>
+          <TextField
+            value={description}
+            onChange={function (e) { setDescription(e.target.value) }}
+            placeholder={t.report.descriptionPlaceholder}
+            multiline
+            rows={3}
+            fullWidth
+            size="small"
+            slotProps={{ htmlInput: { maxLength: 300 } }}
+            // helperText hiển thị bộ đếm ký tự, thay cho div .count viết tay
+            helperText={description.length + ' / 300'}
+            sx={{ mt: 1.5 }}
+          />
+        </DialogContent>
 
-          <div className={styles.footer}>
-            <button type="button" className={styles.cancelBtn} onClick={onClose}>
-              {t.report.cancel}
-            </button>
-            <button type="submit" className={styles.submitBtn} disabled={loading}>
-              {loading ? t.report.submitting : t.report.submit}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <DialogActions sx={{ px: 3, py: 2, gap: 1.25 }}>
+          <Button variant="outline-secondary" fullWidth onClick={onClose}>
+            {t.report.cancel}
+          </Button>
+          <Button type="submit" variant="danger" fullWidth loading={loading}>
+            {loading ? t.report.submitting : t.report.submit}
+          </Button>
+        </DialogActions>
+      </Box>
+    </Dialog>
   )
 }

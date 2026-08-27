@@ -12,8 +12,24 @@
 //   → Sau khi xóa: gọi onDelete(id) để Home.jsx lọc bài ra khỏi danh sách
 
 import { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { Dropdown } from 'react-bootstrap'
+import { Link as RouterLink } from 'react-router-dom'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
+import Divider from '@mui/material/Divider'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import TextField from '@mui/material/TextField'
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
+import CloseIcon from '@mui/icons-material/Close'
+import VerifiedIcon from '@mui/icons-material/Verified'
+import Button from '../common/Button'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../hooks/useAuth'
 import { likePost, unlikePost, deletePost, updatePost } from '../../features/post/postAPI'
@@ -25,11 +41,12 @@ import ConfirmModal from '../common/ConfirmModal'
 import ReportModal from '../common/ReportModal'
 import UserHoverCard from '../user/UserHoverCard'
 import CaptionText from '../common/CaptionText'
+import { mediaNavSx, actionBtnSx, likedSx, countSx } from './postStyles'
+
 import ReactionBar from '../common/ReactionBar'
 import { reactionEmoji } from '../common/reactions'
 import { timeAgo } from '../../utils/formatTime'
 import { formatNumber } from '../../utils/formatNumber'
-import styles from './PostCard.module.css'
 
 const LIKE_COLOR = '#ff3b5c'
 
@@ -89,6 +106,8 @@ export default function PostCard({
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [showReport, setShowReport] = useState(false)
+  // Menu 3 chấm: MUI Menu cần biết neo vào phần tử nào, giữ trong state
+  var [menuAnchor, setMenuAnchor] = useState(null)
   const [mediaIndex, setMediaIndex] = useState(0)
   const [showLikeBurst, setShowLikeBurst] = useState(false)
 
@@ -302,43 +321,77 @@ export default function PostCard({
     }
   }
 
+  // Đóng menu rồi mới chạy hành động, tránh menu treo lại khi modal mở đè lên
+  function runFromMenu(action) {
+    setMenuAnchor(null)
+    action()
+  }
+
   return (
     <>
-      <div className={styles.card}>
+      <Box
+        sx={{
+          bgcolor: 'background.paper',
+          border: 1,
+          borderColor: 'divider',
+          borderRadius: 2,
+          mb: 3,
+          maxWidth: 614,
+          position: 'relative',
+        }}
+      >
         {/* Header: avatar + username + nút menu */}
-        <div className={styles.header}>
-          <div className={styles.userInfo}>
-            {/* hoverTrigger: vùng hover để hiện UserHoverCard */}
-            <div
-              className={styles.hoverTrigger}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.5, gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flex: 1, minWidth: 0 }}>
+            {/* Vùng hover để hiện UserHoverCard, phải relative để popup neo theo */}
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', gap: 1.25, position: 'relative', cursor: 'default' }}
               onMouseEnter={handleUserMouseEnter}
               onMouseLeave={handleUserMouseLeave}
             >
-              <Link to={`/${post.user?.username}`}>
+              <Link component={RouterLink} to={`/${post.user?.username}`}>
                 {/* Avatar có gradient ring như story (giống Instagram) */}
-                <Avatar src={post.user?.avatarUrl || post.user?.avatar} username={post.user?.username} size="md" hasStory={post.user?.hasActiveStory || false} seenStory={post.user?.storySeen || false} />
+                <Avatar
+                  src={post.user?.avatarUrl || post.user?.avatar}
+                  username={post.user?.username}
+                  size="md"
+                  hasStory={post.user?.hasActiveStory || false}
+                  seenStory={post.user?.storySeen || false}
+                />
               </Link>
-              <div className={styles.userMeta}>
-                {/* Dòng 1: username + verified badge + dấu chấm + thời gian */}
-                <div className={styles.headerNameRow}>
-                  <Link to={`/${post.user?.username}`}>
-                    <span className={styles.username}>{post.user?.username}</span>
+
+              <Box sx={{ minWidth: 0 }}>
+                {/* Dòng 1: username + verified + dấu chấm + thời gian */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: .625, flexWrap: 'nowrap' }}>
+                  <Link
+                    component={RouterLink}
+                    to={`/${post.user?.username}`}
+                    underline="hover"
+                    sx={{ fontWeight: 600, fontSize: 14, color: 'text.primary', whiteSpace: 'nowrap' }}
+                  >
+                    {post.user?.username}
                   </Link>
+
                   {post.user?.isTrusted && (
-                    <span className={styles.verifiedBadge} title="Tài khoản đã xác minh">
-                      <svg width="14" height="14" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="12" fill="#3897f0" />
-                        <path d="M7 12.5l3.5 3.5 6.5-7" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
+                    <Tooltip title="Tài khoản đã xác minh" arrow>
+                      <VerifiedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />
+                    </Tooltip>
                   )}
-                  <span className={styles.headerDot}>•</span>
-                  <span className={styles.headerTime}>{timeAgo(post.createdAt)}</span>
-                </div>
+
+                  <Typography component="span" sx={{ color: 'text.secondary', fontSize: 12, flexShrink: 0 }}>•</Typography>
+                  <Typography component="span" sx={{ fontSize: 13, color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                    {timeAgo(post.createdAt)}
+                  </Typography>
+                </Box>
+
                 {/* Dòng 2: suggested reason hoặc location */}
-                {suggestedReason && <div className={styles.suggestedText}>{suggestedReason}</div>}
-                {!suggestedReason && post.location && <div className={styles.location}>{post.location}</div>}
-              </div>
+                {suggestedReason && (
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{suggestedReason}</Typography>
+                )}
+                {!suggestedReason && post.location && (
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{post.location}</Typography>
+                )}
+              </Box>
 
               {/* Hover card popup */}
               {showHoverCard && post.user?.username && (
@@ -348,90 +401,170 @@ export default function PostCard({
                   onMouseLeave={handleCardMouseLeave}
                 />
               )}
-            </div>
-          </div>
+            </Box>
+          </Box>
 
           {/* Follow button + menu gộp bên phải */}
-          <div className={styles.headerRight}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: .75, flexShrink: 0 }}>
             {showFollow && !isOwner && (
-              <button
+              // Nút Follow kiểu Instagram: nền trắng chữ đen, nổi bật trên nền tối
+              <Box
+                component="button"
                 type="button"
-                className={styles.postFollowBtn}
                 onClick={handleFollowClick}
+                sx={{
+                  bgcolor: '#fff',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: .875,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  '&:hover': { bgcolor: '#f0f0f0' },
+                }}
               >
                 {t.common.follow}
-              </button>
+              </Box>
             )}
 
             {/* Menu bài viết: chủ bài sửa/xóa, người khác báo cáo */}
-            <Dropdown align="end">
-              <Dropdown.Toggle as="button" className="btn-icon" style={{ background: 'none', border: 'none', color: 'var(--ink)', padding: '4px 6px', cursor: 'pointer' }}>
-                {/* 3 chấm ngang (horizontal dots) như Instagram */}
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                  <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
-                </svg>
-              </Dropdown.Toggle>
-              <Dropdown.Menu>
-                {isOwner ? (
-                  <>
-                    <Dropdown.Item onClick={() => { setEditCaption(caption); setShowEdit(true) }}>
+            <IconButton size="small" onClick={function (e) { setMenuAnchor(e.currentTarget) }} aria-label="menu">
+              <MoreHorizIcon />
+            </IconButton>
+
+            <Menu
+              anchorEl={menuAnchor}
+              open={!!menuAnchor}
+              onClose={function () { setMenuAnchor(null) }}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+              {isOwner
+                ? [
+                    <MenuItem
+                      key="edit"
+                      onClick={function () { runFromMenu(function () { setEditCaption(caption); setShowEdit(true) }) }}
+                    >
                       ✏️ {t.post.editCaption}
-                    </Dropdown.Item>
-                    <Dropdown.Divider />
-                    <Dropdown.Item className="text-danger" onClick={() => setShowConfirmDelete(true)}>
+                    </MenuItem>,
+                    <Divider key="div" />,
+                    <MenuItem
+                      key="delete"
+                      sx={{ color: 'error.main' }}
+                      onClick={function () { runFromMenu(function () { setShowConfirmDelete(true) }) }}
+                    >
                       🗑️ {t.post.deletePost}
-                    </Dropdown.Item>
-                  </>
-                ) : (
-                  <Dropdown.Item className="text-danger" onClick={function () { setShowReport(true) }}>
+                    </MenuItem>,
+                  ]
+                : (
+                  <MenuItem
+                    sx={{ color: 'error.main' }}
+                    onClick={function () { runFromMenu(function () { setShowReport(true) }) }}
+                  >
                     {t.post.reportPost}
-                  </Dropdown.Item>
+                  </MenuItem>
                 )}
-              </Dropdown.Menu>
-            </Dropdown>
-          </div>
-        </div>
+            </Menu>
+          </Box>
+        </Box>
 
         {/* Media: nhiều ảnh/video thì hiện carousel có nút qua/lại và chấm trạng thái */}
         {mediaUrl && (
-          <div className={styles.mediaWrap} onDoubleClick={handleMediaDoubleClick}>
+          <Box sx={{ position: 'relative', width: '100%', bgcolor: '#000' }} onDoubleClick={handleMediaDoubleClick}>
             {mediaType === 'video' ? (
-              <video src={mediaUrl} poster={thumbnailUrl || undefined} className={styles.media} controls muted loop />
+              <Box
+                component="video"
+                src={mediaUrl}
+                poster={thumbnailUrl || undefined}
+                controls muted loop
+                sx={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
+              />
             ) : (
-              <img src={mediaUrl} alt="post" className={styles.media} loading="lazy" />
+              <Box
+                component="img"
+                src={mediaUrl}
+                alt="post"
+                loading="lazy"
+                sx={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
+              />
             )}
 
-            {showLikeBurst && <div className={styles.likeBurst}>♥</div>}
+            {/* Trái tim phóng to khi double-tap */}
+            {showLikeBurst && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '50%',
+                  color: '#fff',
+                  fontSize: 96,
+                  lineHeight: 1,
+                  textShadow: '0 8px 28px rgba(0,0,0,.45)',
+                  pointerEvents: 'none',
+                  animation: 'likeBurst 650ms ease forwards',
+                  '@keyframes likeBurst': {
+                    '0%':   { opacity: 0, transform: 'translate(-50%, -50%) scale(0.4)' },
+                    '22%':  { opacity: 1, transform: 'translate(-50%, -50%) scale(1.12)' },
+                    '55%':  { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' },
+                    '100%': { opacity: 0, transform: 'translate(-50%, -50%) scale(1.25)' },
+                  },
+                }}
+              >
+                ♥
+              </Box>
+            )}
 
             {hasManyMedia && (
               <>
-                <button type="button" className={styles.mediaNavPrev} onClick={goPrevMedia}>‹</button>
-                <button type="button" className={styles.mediaNavNext} onClick={goNextMedia}>›</button>
-                <div className={styles.mediaDots}>
+                <Box component="button" type="button" onClick={goPrevMedia} sx={{ ...mediaNavSx, left: 14 }}>‹</Box>
+                <Box component="button" type="button" onClick={goNextMedia} sx={{ ...mediaNavSx, right: 14 }}>›</Box>
+
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    left: 0, right: 0, bottom: 10,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: .75,
+                    pointerEvents: 'none',
+                  }}
+                >
                   {mediaItems.map(function (_, i) {
                     return (
-                      <button
+                      <Box
                         key={i}
+                        component="button"
                         type="button"
-                        className={i === mediaIndex ? styles.mediaDotActive : styles.mediaDot}
+                        aria-label={'Xem media ' + (i + 1)}
                         onClick={function (e) {
                           e.stopPropagation()
                           setMediaIndex(i)
                         }}
-                        aria-label={'Xem media ' + (i + 1)}
+                        sx={{
+                          width: 7, height: 7, p: 0,
+                          border: 'none',
+                          borderRadius: '50%',
+                          pointerEvents: 'auto',
+                          cursor: 'pointer',
+                          bgcolor: i === mediaIndex ? '#4f63ff' : 'rgba(255,255,255,.62)',
+                        }}
                       />
                     )
                   })}
-                </div>
+                </Box>
               </>
             )}
-          </div>
+          </Box>
         )}
 
         {/* Nút tương tác: like, comment, bookmark */}
-        <div className={styles.actions}>
-          <div
-            style={{ position: 'relative', display: 'inline-flex' }}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, px: 1.5, pt: 1, pb: .5 }}>
+          <Box
+            sx={{ position: 'relative', display: 'inline-flex' }}
             onMouseEnter={openReactions}
             onMouseLeave={closeReactions}
           >
@@ -442,32 +575,40 @@ export default function PostCard({
                 onMouseLeave={closeReactions}
               />
             )}
-            <button className={`${styles.likeBtn} ${liked ? styles.liked : ''}`} onClick={handleToggleLike}>
+            <Box component="button" onClick={handleToggleLike} sx={{ ...actionBtnSx, ...(liked ? likedSx : null) }}>
               {liked && myReaction ? (
-                <span style={{ fontSize: 22, lineHeight: 1 }}>{reactionEmoji(myReaction)}</span>
+                <Box component="span" sx={{ fontSize: 22, lineHeight: 1 }}>{reactionEmoji(myReaction)}</Box>
               ) : (
                 <HeartIcon filled={false} />
               )}
-              <span className={styles.actionCount}>{formatNumber(likesCount)}</span>
-            </button>
-          </div>
-          <button className={styles.likeBtn} onClick={() => setShowModal(true)}>
+              <Box component="span" sx={countSx}>{formatNumber(likesCount)}</Box>
+            </Box>
+          </Box>
+
+          <Box component="button" onClick={() => setShowModal(true)} sx={actionBtnSx}>
             <CommentIcon />
-            <span className={styles.actionCount}>{formatNumber(commentsCount)}</span>
-          </button>
-          <button className={`${styles.likeBtn} ${styles.saveBtn}`} onClick={handleBookmark}>
+            <Box component="span" sx={countSx}>{formatNumber(commentsCount)}</Box>
+          </Box>
+
+          <Box component="button" onClick={handleBookmark} sx={{ ...actionBtnSx, ml: 'auto' }}>
             <BookmarkIcon filled={saved} />
-          </button>
-        </div>
+          </Box>
+        </Box>
 
         {caption && (
-          <div className={styles.caption}>
-            <Link to={`/${post.user?.username}`} className={styles.username}>{post.user?.username}</Link>
+          <Box sx={{ px: 2, pt: .5, pb: 1, fontSize: 14, lineHeight: 1.5 }}>
+            <Link
+              component={RouterLink}
+              to={`/${post.user?.username}`}
+              underline="hover"
+              sx={{ fontWeight: 600, fontSize: 14, color: 'text.primary', mr: .75 }}
+            >
+              {post.user?.username}
+            </Link>
             <CaptionText text={caption} />
-          </div>
+          </Box>
         )}
-
-      </div>
+      </Box>
 
       {/* Modal xem chi tiết bài viết */}
       {showModal && (
@@ -489,36 +630,39 @@ export default function PostCard({
       )}
 
       {/* Form sửa caption */}
-      {showEdit && (
-        <div className={styles.editOverlay} onClick={() => setShowEdit(false)}>
-          <div className={styles.editBox} onClick={(e) => e.stopPropagation()}>
-            <div className={styles.editHeader}>
-              <span>{t.post.editCaption}</span>
-              <button className={styles.editClose} onClick={() => setShowEdit(false)}>✕</button>
-            </div>
-            <form onSubmit={handleEdit}>
-              <textarea
-                className={styles.editTextarea}
-                value={editCaption}
-                onChange={(e) => setEditCaption(e.target.value)}
-                rows={4}
-                maxLength={2200}
-                autoFocus
-                placeholder={t.post.captionPlaceholder}
-              />
-              <div className={styles.editCount}>{editCaption.length} / 2200</div>
-              <div className={styles.editActions}>
-                <button type="button" className={styles.editCancel} onClick={() => setShowEdit(false)}>
-                  {t.post.cancel}
-                </button>
-                <button type="submit" className={styles.editSave} disabled={editLoading}>
-                  {editLoading ? t.post.saving : t.post.save}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Dialog open={showEdit} onClose={() => setShowEdit(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.75, pr: 1 }}>
+          <Typography component="span" sx={{ fontSize: 15, fontWeight: 600 }}>{t.post.editCaption}</Typography>
+          <IconButton size="small" onClick={() => setShowEdit(false)} aria-label={t.post.cancel}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+
+        <Box component="form" onSubmit={handleEdit}>
+          <DialogContent dividers>
+            <TextField
+              value={editCaption}
+              onChange={(e) => setEditCaption(e.target.value)}
+              multiline
+              rows={4}
+              fullWidth
+              autoFocus
+              placeholder={t.post.captionPlaceholder}
+              slotProps={{ htmlInput: { maxLength: 2200 } }}
+              helperText={editCaption.length + ' / 2200'}
+            />
+          </DialogContent>
+
+          <DialogActions sx={{ px: 2, py: 1.5, gap: 1 }}>
+            <Button variant="outline-secondary" onClick={() => setShowEdit(false)}>
+              {t.post.cancel}
+            </Button>
+            <Button type="submit" loading={editLoading}>
+              {editLoading ? t.post.saving : t.post.save}
+            </Button>
+          </DialogActions>
+        </Box>
+      </Dialog>
 
       {showReport && (
         <ReportModal

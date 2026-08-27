@@ -2,7 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../../services/api'
 import { useLanguage } from '../../i18n/LanguageContext'
 import CommentItem from './CommentItem'
-import Spinner from '../common/Spinner'
+import Box from '@mui/material/Box'
+import { CommentSkeleton } from '../common/Skeletons'
+import { staggerIn } from '../../theme/animations'
 
 export default function CommentList({ postId, refreshKey, onReply, onClose }) {
   var { t } = useLanguage()
@@ -12,7 +14,7 @@ export default function CommentList({ postId, refreshKey, onReply, onClose }) {
     enabled: !!postId,
   })
 
-  if (isLoading) return <Spinner size="sm" />
+  if (isLoading) return <CommentSkeleton />
 
   const comments = data?.comments || data || []
 
@@ -26,8 +28,13 @@ export default function CommentList({ postId, refreshKey, onReply, onClose }) {
 
   return (
     <div>
-      {comments.map(function (comment) {
-        return <CommentItem key={comment._id} comment={comment} postId={postId} refreshKey={refreshKey} onReply={onReply} onClose={onClose} />
+      {comments.map(function (comment, i) {
+        return (
+          // Bọc thêm một lớp chỉ để chạy hiệu ứng so le — không đụng vào CommentItem
+          <Box key={comment._id} sx={staggerIn(i, { step: 30, maxDelay: 200 })}>
+            <CommentItem comment={comment} postId={postId} refreshKey={refreshKey} onReply={onReply} onClose={onClose} />
+          </Box>
+        )
       })}
     </div>
   )

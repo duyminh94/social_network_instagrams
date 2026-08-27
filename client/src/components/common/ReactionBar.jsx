@@ -3,52 +3,60 @@
 // Props:
 //   onPick(type)         — chọn 1 cảm xúc
 //   onMouseEnter/Leave   — để cha giữ thanh mở khi rê chuột vào
+//
+// Dùng Paper của MUI thay cho div inline style: nền, viền và đổ bóng
+//   lấy theo theme nên tự đúng ở cả giao diện sáng và tối
 
+import Paper from '@mui/material/Paper'
+import Box from '@mui/material/Box'
 import { REACTIONS } from './reactions'
 
 export default function ReactionBar({ onPick, onMouseEnter, onMouseLeave }) {
   return (
-    <div
+    <Paper
+      elevation={6}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      style={{
+      sx={{
         position: 'absolute',
         bottom: '100%',
         left: 0,
-        marginBottom: 8,
+        mb: 1,
         display: 'flex',
-        gap: 4,
-        padding: '6px 8px',
-        background: 'var(--bg-elevated, #262626)',
-        border: '1px solid var(--border, #363636)',
+        gap: 0.5,
+        px: 1,
+        py: 0.75,
         borderRadius: 24,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+        border: 1,
+        borderColor: 'divider',
+        // Nằm trên nội dung bài viết nhưng vẫn dưới lớp modal
         zIndex: 30,
       }}
     >
       {REACTIONS.map(function (r) {
         return (
-          <button
+          <Box
             key={r.type}
+            component="button"
             type="button"
             title={r.label}
             onClick={function () { onPick(r.type) }}
-            style={{
+            sx={{
               background: 'none',
               border: 'none',
               cursor: 'pointer',
               fontSize: 26,
               lineHeight: 1,
-              padding: 2,
+              p: '2px',
               transition: 'transform 0.12s',
+              // Phóng to emoji khi rê chuột, thay cho 2 handler onMouseOver/Out cũ
+              '&:hover': { transform: 'scale(1.35)' },
             }}
-            onMouseOver={function (e) { e.currentTarget.style.transform = 'scale(1.35)' }}
-            onMouseOut={function (e) { e.currentTarget.style.transform = 'scale(1)' }}
           >
             {r.emoji}
-          </button>
+          </Box>
         )
       })}
-    </div>
+    </Paper>
   )
 }

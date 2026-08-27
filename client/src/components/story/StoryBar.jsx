@@ -12,7 +12,8 @@ import { useLanguage } from '../../i18n/LanguageContext'
 import { getStoryFeed, getMyStories, createStory } from '../../features/story/storyAPI'
 import Avatar from '../common/Avatar'
 import StoryViewer from './StoryViewer'
-import styles from './Story.module.css'
+import Box from '@mui/material/Box'
+import * as s from './storyStyles'
 
 export default function StoryBar() {
   var { user } = useAuth()
@@ -233,11 +234,11 @@ export default function StoryBar() {
         onChange={handleFileChange}
       />
 
-      <div className={styles.storyBar}>
+      <Box sx={s.storyBar}>
         {/* Bubble của chính mình — luôn đứng đầu */}
-        <div className={styles.storyItem}>
-          <div className={styles.storyAvatarSlot}>
-            <div className={styles.myStoryWrapper} onClick={openMyStory}>
+        <Box sx={s.storyItem}>
+          <Box sx={s.storyAvatarSlot}>
+            <Box sx={s.myStoryWrapper} onClick={openMyStory}>
               <Avatar
                 src={user?.avatarUrl}
                 username={user?.username}
@@ -245,17 +246,19 @@ export default function StoryBar() {
                 hasStory={myStories.length > 0}
                 seenStory={myStorySeen}
               />
-              <button
-                className={styles.addStoryBtn}
+              <Box
+                component="button"
+                type="button"
+                sx={s.addStoryBtn}
                 onClick={function (e) { e.stopPropagation(); openFileSelector() }}
                 title={t.story.addStory}
               >
                 +
-              </button>
-            </div>
-          </div>
-          <span className={styles.storyName}>{t.story.myStory}</span>
-        </div>
+              </Box>
+            </Box>
+          </Box>
+          <Box component="span" sx={s.storyName}>{t.story.myStory}</Box>
+        </Box>
 
         {/* Feed stories — 1 bubble = 1 user */}
         {groupedFeed.map(function (group, i) {
@@ -264,12 +267,12 @@ export default function StoryBar() {
           })
           var isSeen = viewedUserIds.has(group.user?._id) || isSeenFromServer
           return (
-            <div
+            <Box
               key={group.user?._id || i}
-              className={styles.storyItem}
+              sx={s.storyItem}
               onClick={function () { openFeedStoryGroup(group, i) }}
             >
-              <div className={styles.storyAvatarSlot}>
+              <Box sx={s.storyAvatarSlot}>
                 <Avatar
                   src={group.user?.avatarUrl}
                   username={group.user?.username}
@@ -277,53 +280,55 @@ export default function StoryBar() {
                   hasStory
                   seenStory={isSeen}
                 />
-              </div>
-              <span className={styles.storyName}>{group.user?.username}</span>
-            </div>
+              </Box>
+              <Box component="span" sx={s.storyName}>{group.user?.username}</Box>
+            </Box>
           )
         })}
-      </div>
+      </Box>
 
       {/* Upload modal */}
       {isUploadOpen && (
-        <div className={styles.uploadOverlay} onClick={closeUploadModal}>
-          <div className={styles.uploadModal} onClick={function (e) { e.stopPropagation() }}>
-            <div className={styles.uploadModalHeader}>
+        <Box sx={s.uploadOverlay} onClick={closeUploadModal}>
+          <Box sx={s.uploadModal} onClick={function (e) { e.stopPropagation() }}>
+            <Box sx={s.uploadModalHeader}>
               <span>{t.story.createTitle}</span>
-              <button className={styles.uploadCloseBtn} onClick={closeUploadModal}>✕</button>
-            </div>
+              <Box component="button" type="button" sx={s.uploadCloseBtn} onClick={closeUploadModal}>✕</Box>
+            </Box>
 
             {previewFile && (
-              <div className={styles.uploadPreviewWrapper}>
+              <Box sx={s.uploadPreviewWrapper}>
                 {previewFile.type === 'video' ? (
-                  <video src={previewFile.url} className={styles.uploadPreview} controls muted />
+                  <Box component="video" src={previewFile.url} sx={s.uploadPreview} controls muted />
                 ) : (
-                  <img src={previewFile.url} alt="preview" className={styles.uploadPreview} />
+                  <Box component="img" src={previewFile.url} alt="preview" sx={s.uploadPreview} />
                 )}
-              </div>
+              </Box>
             )}
 
-            <label className={styles.allowCommentRow}>
+            <Box component="label" sx={s.allowCommentRow}>
               <input
                 type="checkbox"
                 checked={allowComments}
                 onChange={function (e) { setAllowComments(e.target.checked) }}
               />
               <span>{t.story.allowComments}</span>
-            </label>
+            </Box>
 
-            <div className={styles.uploadActions}>
-              <button className={styles.cancelBtn} onClick={closeUploadModal}>{t.story.cancel}</button>
-              <button
-                className={styles.submitBtn}
+            <Box sx={s.uploadActions}>
+              <Box component="button" type="button" sx={s.cancelBtn} onClick={closeUploadModal}>{t.story.cancel}</Box>
+              <Box
+                component="button"
+                type="button"
+                sx={s.submitBtn}
                 onClick={handleUpload}
                 disabled={!previewFile || uploadMutation.isPending}
               >
                 {uploadMutation.isPending ? t.story.posting : t.story.postBtn}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
       )}
 
       {viewingStories !== null && (

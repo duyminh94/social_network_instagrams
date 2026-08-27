@@ -1,15 +1,33 @@
 // components/common/VerificationModal.jsx
-// Luồng xin cấp tích xanh 3 bước:
+// Luồng xin cấp tích xanh 3 bước — dựng trên Dialog của MUI
 //   step 'check'   — hiển thị checklist điều kiện, nút Gửi OTP
 //   step 'otp'     — nhập mã OTP gửi về email
 //   step 'success' — thông báo thành công
+//
+// Chỉ đổi phần giao diện sang MUI, toàn bộ logic gọi API, đếm ngược
+//   và chuyển bước giữ nguyên như bản cũ
 
 import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import IconButton from '@mui/material/IconButton'
+import CloseIcon from '@mui/icons-material/Close'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import CancelIcon from '@mui/icons-material/Cancel'
+import List from '@mui/material/List'
+import ListItem from '@mui/material/ListItem'
+import ListItemIcon from '@mui/material/ListItemIcon'
+import ListItemText from '@mui/material/ListItemText'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
+import Box from '@mui/material/Box'
 import { useAuth } from '../../hooks/useAuth'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { checkVerifyEligibility, requestVerifyOtp, confirmVerifyOtp } from '../../features/verification/verificationAPI'
-import styles from './VerificationModal.module.css'
+import Button from './Button'
 
 // Xây dựng label cho từng điều kiện từ i18n + giá trị động
 function buildCheckLabel(key, check, vt) {
@@ -106,115 +124,140 @@ export default function VerificationModal({ onClose }) {
   }
 
   return (
-    <div className={styles.overlay} onClick={function (e) { if (e.target === e.currentTarget) onClose() }}>
-      <div className={styles.modal}>
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pr: 1 }}>
+        <Typography component="span" sx={{ fontSize: 16, fontWeight: 600 }}>
+          {step === 'success' ? ('✅ ' + vt.verifySuccessTitle) : ('🔵 ' + vt.verifyModalTitle)}
+        </Typography>
+        <IconButton onClick={onClose} size="small" aria-label={vt.verifyClose}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
 
-        {/* Header */}
-        <div className={styles.header}>
-          <h2 className={styles.title}>
-            {step === 'success' ? ('✅ ' + vt.verifySuccessTitle) : ('🔵 ' + vt.verifyModalTitle)}
-          </h2>
-          <button type="button" className={styles.closeBtn} onClick={onClose}>×</button>
-        </div>
+      {/* Bước: đang tải điều kiện */}
+      {fetching && (
+        <DialogContent dividers>
+          <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
+            {vt.verifyChecking}
+          </Typography>
+        </DialogContent>
+      )}
 
-        {/* Step: loading */}
-        {fetching && (
-          <div className={styles.body}>
-            <p className={styles.hint}>{vt.verifyChecking}</p>
-          </div>
-        )}
+      {/* Bước: checklist điều kiện */}
+      {!fetching && step === 'check' && checks && (
+        <>
+          <DialogContent dividers>
+            <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
+              {vt.verifyIntro}
+            </Typography>
 
-        {/* Step: check — checklist điều kiện */}
-        {!fetching && step === 'check' && checks && (
-          <>
-            <div className={styles.body}>
-              <p className={styles.hint}>{vt.verifyIntro}</p>
-              <ul className={styles.checklist}>
-                {Object.entries(checks).map(function ([key, c]) {
-                  return (
-                    <li key={key} className={c.pass ? styles.checkPass : styles.checkFail}>
-                      <span className={styles.checkIcon}>{c.pass ? '✓' : '✗'}</span>
-                      <span>{buildCheckLabel(key, c, vt)}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-              {!allPass && (
-                <p className={styles.failNote}>{vt.verifyFailNote}</p>
+            <List dense sx={{ mt: 1 }}>
+              {Object.entries(checks).map(function ([key, c]) {
+                return (
+                  <ListItem key={key} disableGutters sx={{ py: 0.25 }}>
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      {c.pass
+                        ? <CheckCircleIcon color="success" fontSize="small" />
+                        : <CancelIcon color="error" fontSize="small" />}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={buildCheckLabel(key, c, vt)}
+                      slotProps={{ primary: { sx: { fontSize: 14 } } }}
+                    />
+                  </ListItem>
+                )
+              })}
+            </List>
+
+            {!allPass && (
+              <Typography sx={{ fontSize: 13, color: 'error.main', mt: 1 }}>
+                {vt.verifyFailNote}
+              </Typography>
+            )}
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, py: 2, gap: 1.25 }}>
+            <Button variant="outline-secondary" fullWidth onClick={onClose}>
+              {vt.verifyClose}
+            </Button>
+            <Button
+              fullWidth
+              disabled={!allPass}
+              loading={sendingOtp}
+              onClick={handleRequestOtp}
+            >
+              {sendingOtp ? vt.verifySending : vt.verifySendOtp}
+            </Button>
+          </DialogActions>
+        </>
+      )}
+
+      {/* Bước: nhập mã OTP */}
+      {step === 'otp' && (
+        <Box component="form" onSubmit={handleConfirmOtp}>
+          <DialogContent dividers>
+            <Typography sx={{ fontSize: 14, color: 'text.secondary', mb: 1.5 }}>
+              {vt.verifyOtpHint}
+            </Typography>
+
+            <TextField
+              value={otp}
+              onChange={function (e) { setOtp(e.target.value.replace(/\D/g, '')) }}
+              placeholder={vt.verifyOtpPlaceholder}
+              fullWidth
+              autoFocus
+              slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 6 } }}
+              // Mã 6 số, giãn chữ và canh giữa cho dễ đọc từng ký tự
+              sx={{ '& input': { textAlign: 'center', letterSpacing: 6, fontSize: 20, fontWeight: 600 } }}
+            />
+
+            <Box sx={{ mt: 1.5, textAlign: 'center' }}>
+              {waitSeconds > 0 ? (
+                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                  {vt.verifyResendAfter.replace('{s}', waitSeconds)}
+                </Typography>
+              ) : (
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  loading={sendingOtp}
+                  onClick={handleRequestOtp}
+                >
+                  {sendingOtp ? vt.verifySending : vt.verifyResend}
+                </Button>
               )}
-            </div>
-            <div className={styles.footer}>
-              <button type="button" className={styles.cancelBtn} onClick={onClose}>{vt.verifyClose}</button>
-              <button
-                type="button"
-                className={styles.primaryBtn}
-                disabled={!allPass || sendingOtp}
-                onClick={handleRequestOtp}
-              >
-                {sendingOtp ? vt.verifySending : vt.verifySendOtp}
-              </button>
-            </div>
-          </>
-        )}
+            </Box>
+          </DialogContent>
 
-        {/* Step: otp — nhập mã */}
-        {step === 'otp' && (
-          <form onSubmit={handleConfirmOtp}>
-            <div className={styles.body}>
-              <p className={styles.hint}>{vt.verifyOtpHint}</p>
-              <input
-                className={styles.otpInput}
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder={vt.verifyOtpPlaceholder}
-                value={otp}
-                onChange={function (e) { setOtp(e.target.value.replace(/\D/g, '')) }}
-                autoFocus
-              />
-              <div className={styles.resendRow}>
-                {waitSeconds > 0 ? (
-                  <span className={styles.waitText}>
-                    {vt.verifyResendAfter.replace('{s}', waitSeconds)}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.resendBtn}
-                    onClick={handleRequestOtp}
-                    disabled={sendingOtp}
-                  >
-                    {sendingOtp ? vt.verifySending : vt.verifyResend}
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className={styles.footer}>
-              <button type="button" className={styles.cancelBtn} onClick={onClose}>{vt.verifyCancel}</button>
-              <button
-                type="submit"
-                className={styles.primaryBtn}
-                disabled={otp.length !== 6 || confirming}
-              >
-                {confirming ? vt.verifyConfirming : vt.verifyConfirm}
-              </button>
-            </div>
-          </form>
-        )}
+          <DialogActions sx={{ px: 3, py: 2, gap: 1.25 }}>
+            <Button variant="outline-secondary" fullWidth onClick={onClose}>
+              {vt.verifyCancel}
+            </Button>
+            <Button
+              type="submit"
+              fullWidth
+              disabled={otp.length !== 6}
+              loading={confirming}
+            >
+              {confirming ? vt.verifyConfirming : vt.verifyConfirm}
+            </Button>
+          </DialogActions>
+        </Box>
+      )}
 
-        {/* Step: success */}
-        {step === 'success' && (
-          <>
-            <div className={styles.body}>
-              <p className={styles.successText}>{vt.verifySuccessMsg}</p>
-            </div>
-            <div className={styles.footer}>
-              <button type="button" className={styles.primaryBtn} onClick={onClose}>{vt.verifyClose}</button>
-            </div>
-          </>
-        )}
-
-      </div>
-    </div>
+      {/* Bước: thành công */}
+      {step === 'success' && (
+        <>
+          <DialogContent dividers>
+            <Typography sx={{ fontSize: 14, textAlign: 'center' }}>
+              {vt.verifySuccessMsg}
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, py: 2 }}>
+            <Button fullWidth onClick={onClose}>{vt.verifyClose}</Button>
+          </DialogActions>
+        </>
+      )}
+    </Dialog>
   )
 }

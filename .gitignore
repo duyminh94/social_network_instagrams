@@ -19,3 +19,7 @@ client/node_modules/
 
 THUYET_TRINH.md
 FRONTEND_PLAN.md
+
+# Anh goc do hoa, chi commit ban WebP da nen
+client/src/assets/images/network-bg.png
+MUI_MIGRATION.md

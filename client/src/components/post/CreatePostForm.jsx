@@ -19,7 +19,11 @@ import toast from 'react-hot-toast'
 import { createPost } from '../../features/post/postAPI'
 import { generateCaption } from '../../features/ai/aiAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
-import styles from './CreatePostForm.module.css'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Dialog from '@mui/material/Dialog'
+import IconButton from '@mui/material/IconButton'
+import CloseIcon from '@mui/icons-material/Close'
 
 // Giới hạn kích thước file
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024   // 10 MB
@@ -40,6 +44,125 @@ const IMAGE_FILTERS = [
 
 // Emoji để dán lên ảnh (sticker)
 const STICKER_EMOJIS = ['❤️', '😍', '😂', '🔥', '✨', '😎', '👍', '🎉', '🌟', '💯', '🥳', '🌈', '☀️', '🍕', '🎵', '📍']
+
+// ── Các object sx dùng lại nhiều chỗ trong form ──
+
+// Ảnh/video lớn trong khung chỉnh sửa
+var stageMediaSx = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'contain',
+  display: 'block',
+}
+
+// Sticker emoji dán lên ảnh — kéo được nên cần touchAction none
+var stageStickerSx = {
+  position: 'absolute',
+  transform: 'translate(-50%, -50%)',
+  cursor: 'grab',
+  userSelect: 'none',
+  lineHeight: 1,
+  touchAction: 'none',
+  filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4))',
+  '&:active': { cursor: 'grabbing' },
+}
+
+// Ô thumbnail trong dải chuyển ảnh
+function thumbSx(isActive) {
+  return {
+    flexShrink: 0,
+    width: 52,
+    height: 52,
+    p: 0,
+    borderRadius: 1.5,
+    overflow: 'hidden',
+    cursor: 'pointer',
+    background: 'none',
+    border: '2px solid',
+    borderColor: isActive ? 'primary.main' : 'transparent',
+    '& img, & video': { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+  }
+}
+
+var editLabelSx = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'text.secondary',
+  mt: .25,
+}
+
+// Chip chọn filter màu — viền của ô ảnh con đổi theo trạng thái chọn
+function filterChipSx(isActive) {
+  return {
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: .5,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: 11,
+    fontWeight: isActive ? 600 : 400,
+    color: isActive ? 'primary.main' : 'text.secondary',
+    '& .filterThumb': {
+      width: 56,
+      height: 56,
+      borderRadius: 1.5,
+      overflow: 'hidden',
+      border: '2px solid',
+      borderColor: isActive ? 'primary.main' : 'transparent',
+    },
+    '& .filterThumb img': { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+  }
+}
+
+var stickerBtnSx = {
+  width: 38,
+  height: 38,
+  fontSize: 20,
+  bgcolor: 'background.default',
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 2,
+  cursor: 'pointer',
+  transition: 'background 0.15s',
+  '&:hover': { bgcolor: 'action.hover' },
+}
+
+// Nút viền dùng cho Cancel và Change files
+var outlineBtnSx = {
+  background: 'none',
+  border: '1px solid',
+  borderColor: 'divider',
+  color: 'text.primary',
+  borderRadius: 2,
+  px: 2.5, py: 1,
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: 'pointer',
+  transition: 'background 0.15s',
+  '&:hover': { bgcolor: 'action.hover' },
+}
+
+// Ô nhập caption — chừa lề phải 40px cho nút emoji nằm đè lên
+var captionSx = {
+  bgcolor: 'background.default',
+  border: '1px solid',
+  borderColor: 'divider',
+  borderRadius: 2,
+  color: 'text.primary',
+  fontSize: 14,
+  fontFamily: 'inherit',
+  lineHeight: 1.5,
+  pl: 1.5, pr: '40px', py: 1.25,
+  resize: 'none',
+  width: '100%',
+  outline: 'none',
+  transition: 'border-color 0.15s',
+  '&:focus': { borderColor: 'primary.main' },
+  '&::placeholder': { color: 'text.secondary' },
+}
 
 // Tra chuỗi CSS filter theo id
 function filterCssById(id) {
@@ -441,238 +564,378 @@ export default function CreatePostForm({ show, onClose, onCreated }) {
   var activeIsImage = activePreview && activePreview.type === 'image'
 
   return (
-    // Click overlay bên ngoài dialog → đóng modal
-    <div className={styles.overlay} onClick={function (e) { if (e.target === e.currentTarget) handleClose() }}>
-      <div className={styles.dialog}>
-        <div className={styles.header}>
-          <span />
-          <span className={styles.title}>Create new post</span>
-          <button className={styles.closeBtn} onClick={handleClose} aria-label="Close">✕</button>
-        </div>
+    // Dialog của MUI lo sẵn phần bấm ra ngoài / nhấn Esc để đóng.
+    // Vẫn giữ `if (!show) return null` ở trên nên khi ẩn là không render gì cả
+    <Dialog
+      open
+      onClose={handleClose}
+      maxWidth={false}
+      slotProps={{
+        paper: {
+          sx: {
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            width: '100%',
+            maxWidth: 600,
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          },
+        },
+        backdrop: { sx: { bgcolor: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(2px)' } },
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 2, py: 1.75,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        {/* Ô rỗng bên trái để tiêu đề nằm đúng giữa khi space-between */}
+        <Box component="span" />
+        <Typography component="span" sx={{ fontSize: 16, fontWeight: 600, color: 'text.primary' }}>
+          Create new post
+        </Typography>
+        <IconButton size="small" onClick={handleClose} aria-label="Close">
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </Box>
 
-        <form onSubmit={handleSubmit} className={styles.body}>
-          {previews.length === 0 ? (
-            // Dropzone: kéo thả hoặc click để chọn file
-            <div
-              className={styles.dropzone}
-              onClick={function () { fileRef.current.click() }}
-              onDrop={handleDrop}
-              onDragOver={function (e) { e.preventDefault() }}
-            >
-              <div className={styles.dropIcon}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <path d="m21 15-5-5L5 21" />
-                </svg>
-              </div>
-              <div className={styles.dropText}>Drag photos and videos here</div>
-              <div className={styles.dropSub}>JPG, PNG, MP4, MOV • Max {MAX_FILES} files • Image ≤10MB • Video ≤100MB</div>
-              <button type="button" className={styles.selectBtn}>Select from device</button>
-              {/* Input file ẩn — trigger bằng ref */}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                style={{ display: 'none' }}
-                onChange={function (e) { handleFiles(e.target.files) }}
-              />
-            </div>
-          ) : (
-            // Khung chỉnh sửa: ảnh lớn (filter + sticker) + dải thumbnail + bộ filter/sticker
-            <div className={styles.previewArea}>
-              {/* Stage: ảnh đang active, dán sticker kéo thả lên trên.
-                  Với ảnh, khung lấy đúng tỷ lệ ảnh thật → không có viền → sticker map vị trí chính xác */}
-              <div
-                className={styles.stage}
-                style={activeIsImage && imageRatios[activeIdx] ? { aspectRatio: imageRatios[activeIdx] } : undefined}
-              >
-                {activePreview && activePreview.type === 'video' ? (
-                  <video src={activePreview.url} className={styles.stageMedia} controls muted />
-                ) : activePreview ? (
-                  <img
-                    src={activePreview.url}
-                    alt={'preview-' + activeIdx}
-                    className={styles.stageMedia}
-                    style={{ filter: filterCssById(activeEdit.filter) }}
-                    onLoad={function (e) {
-                      var nw = e.target.naturalWidth
-                      var nh = e.target.naturalHeight
-                      if (!nw || !nh) return
-                      var ratio = nw + ' / ' + nh
-                      setImageRatios(function (prev) {
-                        if (prev[activeIdx] === ratio) return prev
-                        var next = prev.slice()
-                        next[activeIdx] = ratio
-                        return next
-                      })
-                    }}
-                  />
-                ) : null}
-
-                {/* Sticker emoji — kéo để di chuyển, double click để xoá */}
-                {activeIsImage && activeEdit.stickers.map(function (s) {
-                  return (
-                    <span
-                      key={s.id}
-                      className={styles.stageSticker}
-                      style={{ left: s.xPct + '%', top: s.yPct + '%', fontSize: s.sizePct + 'cqw' }}
-                      onMouseDown={function (e) { startDragSticker(e, s.id, e.currentTarget.parentNode) }}
-                      onTouchStart={function (e) { startDragSticker(e, s.id, e.currentTarget.parentNode) }}
-                      onDoubleClick={function () { removeSticker(s.id) }}
-                      title="Kéo để di chuyển • Double click để xoá"
-                    >
-                      {s.emoji}
-                    </span>
-                  )
-                })}
-              </div>
-
-              {/* Dải thumbnail chuyển ảnh active (chỉ hiện khi nhiều file) */}
-              {previews.length > 1 && (
-                <div className={styles.thumbStrip}>
-                  {previews.map(function (p, i) {
-                    return (
-                      <button
-                        type="button"
-                        key={i}
-                        className={i === activeIdx ? styles.thumbActive : styles.thumb}
-                        onClick={function () { setActiveIdx(i) }}
-                      >
-                        {p.type === 'video'
-                          ? <video src={p.url} muted />
-                          : <img src={p.url} alt={'thumb-' + i} />}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-
-              {/* Bộ filter + sticker — chỉ áp dụng cho ảnh, không cho video */}
-              {activeIsImage && (
-                <>
-                  <div className={styles.editLabel}>Bộ lọc màu</div>
-                  <div className={styles.filterRow}>
-                    {IMAGE_FILTERS.map(function (f) {
-                      return (
-                        <button
-                          type="button"
-                          key={f.id}
-                          className={activeEdit.filter === f.id ? styles.filterChipActive : styles.filterChip}
-                          onClick={function () { chooseFilter(f.id) }}
-                        >
-                          <span className={styles.filterThumbWrap}>
-                            <img src={activePreview.url} alt={f.name} style={{ filter: f.css }} />
-                          </span>
-                          <span>{f.name}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  <div className={styles.editLabel}>Dán sticker</div>
-                  <div className={styles.stickerRow}>
-                    {STICKER_EMOJIS.map(function (emoji) {
-                      return (
-                        <button
-                          type="button"
-                          key={emoji}
-                          className={styles.stickerBtn}
-                          onClick={function () { addSticker(emoji) }}
-                        >
-                          {emoji}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-
-              {/* Nút đổi file — reset preview về dropzone */}
-              <button
-                type="button"
-                className={styles.clearBtn}
-                onClick={function () {
-                  setFiles([]); setPreviews([]); setVideoThumbnails([]); setThumbnailLoading(false)
-                  setImageEdits([]); setImageRatios([]); setActiveIdx(0)
-                }}
-              >
-                Change files
-              </button>
-            </div>
-          )}
-
-          {/* Nút gợi ý caption bằng AI — chỉ hiện khi đã chọn ít nhất 1 ảnh */}
-          {previews.some(function (p) { return p.type === 'image' }) && (
-            <button
+      <Box
+        component="form"
+        onSubmit={handleSubmit}
+        sx={{ p: 2.5, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 1.5 }}
+      >
+        {previews.length === 0 ? (
+          // Dropzone: kéo thả hoặc click để chọn file
+          <Box
+            onClick={function () { fileRef.current.click() }}
+            onDrop={handleDrop}
+            onDragOver={function (e) { e.preventDefault() }}
+            sx={{
+              border: '2px dashed',
+              borderColor: 'divider',
+              borderRadius: 2.5,
+              px: 2.5, py: 6,
+              textAlign: 'center',
+              cursor: 'pointer',
+              color: 'text.secondary',
+              transition: 'border-color 0.2s, background 0.2s',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 1,
+              '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(56, 151, 240, 0.05)' },
+            }}
+          >
+            <Box sx={{ color: 'text.secondary', mb: .5 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <path d="m21 15-5-5L5 21" />
+              </svg>
+            </Box>
+            <Typography sx={{ fontSize: 15, fontWeight: 500, color: 'text.primary' }}>
+              Drag photos and videos here
+            </Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              JPG, PNG, MP4, MOV • Max {MAX_FILES} files • Image ≤10MB • Video ≤100MB
+            </Typography>
+            <Box
+              component="button"
               type="button"
-              onClick={handleSuggestCaption}
-              disabled={aiLoading}
-              style={{
-                alignSelf: 'flex-start',
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                margin: '4px 0', padding: '7px 12px',
-                background: 'none', border: '1px solid var(--border)',
-                borderRadius: 8, fontSize: 13, fontWeight: 600,
-                color: '#0095f6',
-                cursor: aiLoading ? 'not-allowed' : 'pointer',
-                opacity: aiLoading ? 0.6 : 1,
+              sx={{
+                mt: 1,
+                bgcolor: 'primary.main',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 2,
+                px: 2.5, py: 1,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background 0.15s',
+                '&:hover': { bgcolor: 'primary.dark' },
               }}
             >
-              {aiLoading ? t.ai.suggesting : t.ai.suggestCaption}
-            </button>
-          )}
-
-          {/* Caption + nút emoji */}
-          <div className={styles.captionWrap}>
-            <textarea
-              ref={captionRef}
-              className={styles.caption}
-              placeholder="Write a caption…"
-              value={caption}
-              onChange={function (e) { setCaption(e.target.value) }}
-              rows={3}
-              maxLength={2200}
+              Select from device
+            </Box>
+            {/* Input file ẩn — trigger bằng ref */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              style={{ display: 'none' }}
+              onChange={function (e) { handleFiles(e.target.files) }}
             />
-            <div className={styles.emojiWrap} data-emoji-wrap>
-              <button
-                type="button"
-                className={styles.emojiToggle}
-                onClick={function () { setShowEmojiPicker(function (v) { return !v }) }}
-                aria-label="Chèn emoji"
-                title="Chèn emoji"
-              >
-                😊
-              </button>
-              {showEmojiPicker && (
-                <div className={styles.emojiPopup} data-emoji-wrap>
-                  <EmojiPicker
-                    onEmojiClick={function (emojiData) { insertEmoji(emojiData.emoji) }}
-                    theme="dark"
-                    searchPlaceHolder="Tìm emoji..."
-                    height={380}
-                    width={320}
-                    lazyLoadEmojis
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-          <div className={styles.captionCount}>{caption.length} / 2200</div>
-
-          <div className={styles.footer}>
-            <button type="button" className={styles.cancelBtn} onClick={handleClose}>Cancel</button>
-            <button
-              type="submit"
-              className={styles.shareBtn}
-              disabled={!files.length || loading || thumbnailLoading}
+          </Box>
+        ) : (
+          // Khung chỉnh sửa: ảnh lớn (filter + sticker) + dải thumbnail + bộ filter/sticker
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {/* Stage: ảnh đang active, dán sticker kéo thả lên trên.
+                Với ảnh, khung lấy đúng tỷ lệ ảnh thật → không có viền → sticker map vị trí chính xác */}
+            <Box
+              style={activeIsImage && imageRatios[activeIdx] ? { aspectRatio: imageRatios[activeIdx] } : undefined}
+              sx={{
+                position: 'relative',
+                width: '100%',
+                aspectRatio: '1 / 1',
+                bgcolor: '#000',
+                borderRadius: 2,
+                overflow: 'hidden',
+                // Bật đơn vị cqw để cỡ sticker co giãn theo chiều rộng khung
+                containerType: 'inline-size',
+              }}
             >
-              {loading ? 'Sharing…' : (thumbnailLoading ? 'Preparing…' : 'Share')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+              {activePreview && activePreview.type === 'video' ? (
+                <Box component="video" src={activePreview.url} controls muted sx={stageMediaSx} />
+              ) : activePreview ? (
+                <Box
+                  component="img"
+                  src={activePreview.url}
+                  alt={'preview-' + activeIdx}
+                  sx={stageMediaSx}
+                  style={{ filter: filterCssById(activeEdit.filter) }}
+                  onLoad={function (e) {
+                    var nw = e.target.naturalWidth
+                    var nh = e.target.naturalHeight
+                    if (!nw || !nh) return
+                    var ratio = nw + ' / ' + nh
+                    setImageRatios(function (prev) {
+                      if (prev[activeIdx] === ratio) return prev
+                      var next = prev.slice()
+                      next[activeIdx] = ratio
+                      return next
+                    })
+                  }}
+                />
+              ) : null}
+
+              {/* Sticker emoji — kéo để di chuyển, double click để xoá */}
+              {activeIsImage && activeEdit.stickers.map(function (s) {
+                return (
+                  <Box
+                    key={s.id}
+                    component="span"
+                    sx={stageStickerSx}
+                    style={{ left: s.xPct + '%', top: s.yPct + '%', fontSize: s.sizePct + 'cqw' }}
+                    onMouseDown={function (e) { startDragSticker(e, s.id, e.currentTarget.parentNode) }}
+                    onTouchStart={function (e) { startDragSticker(e, s.id, e.currentTarget.parentNode) }}
+                    onDoubleClick={function () { removeSticker(s.id) }}
+                    title="Kéo để di chuyển • Double click để xoá"
+                  >
+                    {s.emoji}
+                  </Box>
+                )
+              })}
+            </Box>
+
+            {/* Dải thumbnail chuyển ảnh active (chỉ hiện khi nhiều file) */}
+            {previews.length > 1 && (
+              <Box sx={{ display: 'flex', gap: .75, overflowX: 'auto' }}>
+                {previews.map(function (p, i) {
+                  return (
+                    <Box
+                      component="button"
+                      type="button"
+                      key={i}
+                      sx={thumbSx(i === activeIdx)}
+                      onClick={function () { setActiveIdx(i) }}
+                    >
+                      {p.type === 'video'
+                        ? <video src={p.url} muted />
+                        : <img src={p.url} alt={'thumb-' + i} />}
+                    </Box>
+                  )
+                })}
+              </Box>
+            )}
+
+            {/* Bộ filter + sticker — chỉ áp dụng cho ảnh, không cho video */}
+            {activeIsImage && (
+              <>
+                <Typography sx={editLabelSx}>Bộ lọc màu</Typography>
+                <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: .5 }}>
+                  {IMAGE_FILTERS.map(function (f) {
+                    return (
+                      <Box
+                        component="button"
+                        type="button"
+                        key={f.id}
+                        sx={filterChipSx(activeEdit.filter === f.id)}
+                        onClick={function () { chooseFilter(f.id) }}
+                      >
+                        <Box component="span" className="filterThumb">
+                          <img src={activePreview.url} alt={f.name} style={{ filter: f.css }} />
+                        </Box>
+                        <Box component="span">{f.name}</Box>
+                      </Box>
+                    )
+                  })}
+                </Box>
+
+                <Typography sx={editLabelSx}>Dán sticker</Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: .5 }}>
+                  {STICKER_EMOJIS.map(function (emoji) {
+                    return (
+                      <Box
+                        component="button"
+                        type="button"
+                        key={emoji}
+                        sx={stickerBtnSx}
+                        onClick={function () { addSticker(emoji) }}
+                      >
+                        {emoji}
+                      </Box>
+                    )
+                  })}
+                </Box>
+              </>
+            )}
+
+            {/* Nút đổi file — reset preview về dropzone */}
+            <Box
+              component="button"
+              type="button"
+              sx={{ ...outlineBtnSx, color: 'text.secondary', px: 1.5, py: .75, fontSize: 13, fontWeight: 400, borderRadius: 1.5, alignSelf: 'flex-start' }}
+              onClick={function () {
+                setFiles([]); setPreviews([]); setVideoThumbnails([]); setThumbnailLoading(false)
+                setImageEdits([]); setImageRatios([]); setActiveIdx(0)
+              }}
+            >
+              Change files
+            </Box>
+          </Box>
+        )}
+
+        {/* Nút gợi ý caption bằng AI — chỉ hiện khi đã chọn ít nhất 1 ảnh */}
+        {previews.some(function (p) { return p.type === 'image' }) && (
+          <Box
+            component="button"
+            type="button"
+            onClick={handleSuggestCaption}
+            disabled={aiLoading}
+            sx={{
+              alignSelf: 'flex-start',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: .75,
+              my: .5,
+              px: 1.5, py: .875,
+              background: 'none',
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 2,
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#0095f6',
+              cursor: 'pointer',
+              '&:disabled': { cursor: 'not-allowed', opacity: .6 },
+            }}
+          >
+            {aiLoading ? t.ai.suggesting : t.ai.suggestCaption}
+          </Box>
+        )}
+
+        {/* Caption + nút emoji */}
+        <Box sx={{ position: 'relative' }}>
+          <Box
+            component="textarea"
+            ref={captionRef}
+            sx={captionSx}
+            placeholder="Write a caption…"
+            value={caption}
+            onChange={function (e) { setCaption(e.target.value) }}
+            rows={3}
+            maxLength={2200}
+          />
+          {/* position static để popup emoji neo theo khung caption bên ngoài */}
+          <Box sx={{ position: 'static' }} data-emoji-wrap>
+            <Box
+              component="button"
+              type="button"
+              onClick={function () { setShowEmojiPicker(function (v) { return !v }) }}
+              aria-label="Chèn emoji"
+              title="Chèn emoji"
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 28,
+                height: 28,
+                fontSize: 18,
+                lineHeight: 1,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                borderRadius: 1.5,
+                transition: 'background 0.15s',
+                '&:hover': { bgcolor: 'action.hover' },
+              }}
+            >
+              😊
+            </Box>
+            {showEmojiPicker && (
+              // Neo right khớp với nút 😊 (cũng right: 8px) để popup thẳng hàng, không lệch ra mép
+              <Box
+                data-emoji-wrap
+                sx={{
+                  position: 'absolute',
+                  top: 44,
+                  right: 8,
+                  zIndex: 20,
+                  borderRadius: 2.5,
+                  overflow: 'hidden',
+                  boxShadow: '0 6px 20px rgba(0, 0, 0, 0.3)',
+                }}
+              >
+                <EmojiPicker
+                  onEmojiClick={function (emojiData) { insertEmoji(emojiData.emoji) }}
+                  theme="dark"
+                  searchPlaceHolder="Tìm emoji..."
+                  height={380}
+                  width={320}
+                  lazyLoadEmojis
+                />
+              </Box>
+            )}
+          </Box>
+        </Box>
+        <Typography sx={{ fontSize: 11, color: 'text.secondary', textAlign: 'right', mt: '-8px' }}>
+          {caption.length} / 2200
+        </Typography>
+
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: .5 }}>
+          <Box component="button" type="button" sx={outlineBtnSx} onClick={handleClose}>Cancel</Box>
+          <Box
+            component="button"
+            type="submit"
+            disabled={!files.length || loading || thumbnailLoading}
+            sx={{
+              bgcolor: 'primary.main',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 2,
+              px: 3, py: 1,
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'background 0.15s, opacity 0.15s',
+              '&:hover:not(:disabled)': { bgcolor: 'primary.dark' },
+              '&:disabled': { opacity: .4, cursor: 'not-allowed' },
+            }}
+          >
+            {loading ? 'Sharing…' : (thumbnailLoading ? 'Preparing…' : 'Share')}
+          </Box>
+        </Box>
+      </Box>
+    </Dialog>
   )
 }

@@ -3,10 +3,21 @@
 // Dùng contenteditable + execCommand — lưu innerHTML vào form
 // Nhận: value (HTML string), onChange (fn nhận HTML string)
 
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import EmojiPicker from 'emoji-picker-react'
 import DOMPurify from 'dompurify'
-import styles from './BioEditor.module.css'
+import Box from '@mui/material/Box'
+import Paper from '@mui/material/Paper'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
+import Divider from '@mui/material/Divider'
+import Tooltip from '@mui/material/Tooltip'
+import Typography from '@mui/material/Typography'
+import FormatBoldIcon from '@mui/icons-material/FormatBold'
+import FormatItalicIcon from '@mui/icons-material/FormatItalic'
+import FormatUnderlinedIcon from '@mui/icons-material/FormatUnderlined'
+import EmojiEmotionsIcon from '@mui/icons-material/EmojiEmotions'
+import { useTheme } from '../../context/ThemeContext'
 
 const MAX_LENGTH = 150
 
@@ -42,6 +53,7 @@ function countChars(html) {
 }
 
 export default function BioEditor({ value, onChange, placeholder = 'Giới thiệu bản thân...' }) {
+  const { theme } = useTheme()
   const editorRef = useRef(null)
   const [showEmoji, setShowEmoji] = useState(false)
   const [charCount, setCharCount] = useState(0)
@@ -153,90 +165,132 @@ export default function BioEditor({ value, onChange, placeholder = 'Giới thi�
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [showEmoji])
 
+  // Nút định dạng đang bật, dạng mảng để ToggleButtonGroup hiểu
+  var activeList = []
+  if (activeFormats.bold) activeList.push('bold')
+  if (activeFormats.italic) activeList.push('italic')
+  if (activeFormats.underline) activeList.push('underline')
+
   return (
-    <div className={styles.wrap}>
-      {/* Toolbar */}
-      <div className={styles.toolbar}>
-        {/* Bold */}
-        <button
-          type="button"
-          className={`${styles.toolBtn} ${styles.toolBtnBold} ${activeFormats.bold ? styles.active : ''}`}
-          onMouseDown={e => { e.preventDefault(); applyFormat('bold') }}
-          title="Đậm (Ctrl+B)"
-        >
-          B
-        </button>
+    <Box sx={{ display: 'flex', flexDirection: 'column' }}>
 
-        {/* Italic */}
-        <button
-          type="button"
-          className={`${styles.toolBtn} ${styles.toolBtnItalic} ${activeFormats.italic ? styles.active : ''}`}
-          onMouseDown={e => { e.preventDefault(); applyFormat('italic') }}
-          title="Nghiêng (Ctrl+I)"
-        >
-          I
-        </button>
+      {/* Thanh công cụ */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          flexWrap: 'wrap',
+          px: 1,
+          py: 0.75,
+          bgcolor: 'background.default',
+          border: 1,
+          borderColor: 'divider',
+          borderBottom: 'none',
+          borderRadius: '10px 10px 0 0',
+        }}
+      >
+        {/* onMouseDown + preventDefault thay cho onClick: giữ con trỏ đang
+            đứng trong vùng soạn thảo, nếu để mất focus thì execCommand
+            không biết áp định dạng vào đoạn văn bản nào */}
+        <ToggleButtonGroup value={activeList} size="small">
+          <ToggleButton
+            value="bold"
+            title="Đậm (Ctrl+B)"
+            onMouseDown={e => { e.preventDefault(); applyFormat('bold') }}
+          >
+            <FormatBoldIcon fontSize="small" />
+          </ToggleButton>
+          <ToggleButton
+            value="italic"
+            title="Nghiêng (Ctrl+I)"
+            onMouseDown={e => { e.preventDefault(); applyFormat('italic') }}
+          >
+            <FormatItalicIcon fontSize="small" />
+          </ToggleButton>
+          <ToggleButton
+            value="underline"
+            title="Gạch chân (Ctrl+U)"
+            onMouseDown={e => { e.preventDefault(); applyFormat('underline') }}
+          >
+            <FormatUnderlinedIcon fontSize="small" />
+          </ToggleButton>
+        </ToggleButtonGroup>
 
-        {/* Underline */}
-        <button
-          type="button"
-          className={`${styles.toolBtn} ${styles.toolBtnUnderline} ${activeFormats.underline ? styles.active : ''}`}
-          onMouseDown={e => { e.preventDefault(); applyFormat('underline') }}
-          title="Gạch chân (Ctrl+U)"
-        >
-          U
-        </button>
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
-        <div className={styles.sep} />
-
-        {/* Color palette */}
-        <div className={styles.colorRow}>
+        {/* Bảng màu chữ */}
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {COLORS.map(c => (
-            <div
-              key={c.hex}
-              className={`${styles.colorSwatch} ${activeColor === c.hex ? styles.selected : ''}`}
-              style={{ background: c.hex, border: c.hex === '#ffffff' ? '2px solid var(--border)' : undefined }}
-              title={c.label}
-              onMouseDown={e => { e.preventDefault(); applyColor(c.hex) }}
-            />
+            <Tooltip key={c.hex} title={c.label} arrow>
+              <Box
+                onMouseDown={e => { e.preventDefault(); applyColor(c.hex) }}
+                sx={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  bgcolor: c.hex,
+                  border: 1,
+                  borderColor: 'divider',
+                  // Viền sáng đánh dấu màu đang chọn
+                  outline: activeColor === c.hex ? '2px solid' : 'none',
+                  outlineColor: 'primary.main',
+                  outlineOffset: '1px',
+                }}
+              />
+            </Tooltip>
           ))}
-        </div>
+        </Box>
 
-        <div className={styles.sep} />
+        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
 
-        {/* Emoji picker */}
-        <div className={styles.emojiWrap} data-emoji-wrap>
-          <button
-            type="button"
-            className={`${styles.toolBtn} ${showEmoji ? styles.active : ''}`}
+        {/* Chèn emoji */}
+        <Box sx={{ position: 'relative' }} data-emoji-wrap>
+          <ToggleButton
+            value="emoji"
+            size="small"
+            selected={showEmoji}
+            title="Chèn emoji"
             onMouseDown={e => {
               e.preventDefault()
               saveSelection()
               setShowEmoji(v => !v)
             }}
-            title="Chèn emoji"
           >
-            😊
-          </button>
+            <EmojiEmotionsIcon fontSize="small" />
+          </ToggleButton>
+
           {showEmoji && (
-            <div className={styles.emojiPopup} data-emoji-wrap>
+            <Paper
+              elevation={8}
+              data-emoji-wrap
+              sx={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                left: 0,
+                zIndex: 100,
+                borderRadius: 3,
+                overflow: 'hidden',
+              }}
+            >
               <EmojiPicker
                 onEmojiClick={handleEmojiClick}
-                theme="dark"
+                // Bảng emoji đổi màu theo giao diện app, bản cũ ghi cứng 'dark'
+                theme={theme === 'light' ? 'light' : 'dark'}
                 searchPlaceHolder="Tìm emoji..."
                 height={380}
                 width={320}
                 lazyLoadEmojis
               />
-            </div>
+            </Paper>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
-      {/* Editable area */}
-      <div
+      {/* Vùng soạn thảo — contentEditable nên không dùng TextField được */}
+      <Box
         ref={editorRef}
-        className={styles.editor}
         contentEditable
         suppressContentEditableWarning
         data-placeholder={placeholder}
@@ -245,14 +299,41 @@ export default function BioEditor({ value, onChange, placeholder = 'Giới thi�
         onMouseUp={updateActiveFormats}
         onKeyUp={updateActiveFormats}
         onBlur={saveSelection}
+        sx={{
+          minHeight: 90,
+          maxHeight: 200,
+          overflowY: 'auto',
+          px: 1.75,
+          py: 1.25,
+          bgcolor: 'background.paper',
+          border: 1,
+          borderColor: 'divider',
+          borderRadius: '0 0 10px 10px',
+          fontSize: 14,
+          lineHeight: 1.6,
+          outline: 'none',
+          wordBreak: 'break-word',
+          '&:focus': { borderColor: 'text.secondary' },
+          // Placeholder cho contentEditable: chỉ hiện khi chưa gõ gì
+          '&:empty::before': {
+            content: 'attr(data-placeholder)',
+            color: 'text.secondary',
+            pointerEvents: 'none',
+          },
+        }}
       />
 
-      {/* Char counter */}
-      <div className={styles.footer}>
-        <span style={{ color: charCount >= MAX_LENGTH ? '#ef4444' : undefined }}>
+      {/* Bộ đếm ký tự */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', pt: 0.5 }}>
+        <Typography
+          sx={{
+            fontSize: 12,
+            color: charCount >= MAX_LENGTH ? 'error.main' : 'text.secondary',
+          }}
+        >
           {charCount} / {MAX_LENGTH}
-        </span>
-      </div>
-    </div>
+        </Typography>
+      </Box>
+    </Box>
   )
 }

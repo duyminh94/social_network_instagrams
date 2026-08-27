@@ -1,7 +1,30 @@
+// components/avatar/AvatarPickerModal.jsx
+// Bảng chọn nguồn ảnh đại diện — dựng trên Dialog của MUI
+//
+// Hai chế độ:
+//   'menu'   — chọn tải ảnh lên / chụp ảnh / gỡ ảnh hiện tại
+//   'camera' — xem trực tiếp webcam và bấm chụp
+//
+// Props giữ nguyên: onImageReady(dataUrl), onRemove, onClose
+// Toàn bộ logic camera, đọc file và kiểm tra dung lượng giữ nguyên như bản cũ
+
 import { useRef, useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import List from '@mui/material/List'
+import ListItemButton from '@mui/material/ListItemButton'
+import ListItemIcon from '@mui/material/ListItemIcon'
+import ListItemText from '@mui/material/ListItemText'
+import ImageIcon from '@mui/icons-material/Image'
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera'
+import DeleteIcon from '@mui/icons-material/Delete'
+import Typography from '@mui/material/Typography'
+import Box from '@mui/material/Box'
 import { useLanguage } from '../../i18n/LanguageContext'
-import styles from './AvatarPickerModal.module.css'
+import Button from '../common/Button'
 
 export default function AvatarPickerModal({ onImageReady, onRemove, onClose }) {
   const { t } = useLanguage()
@@ -66,69 +89,90 @@ export default function AvatarPickerModal({ onImageReady, onRemove, onClose }) {
     e.target.value = ''
   }
 
-  function handleBackdropClick(e) {
-    if (e.target === e.currentTarget) {
-      stopCamera()
-      onClose()
-    }
+  // Đóng modal: phải tắt camera trước, nếu không webcam vẫn sáng đèn
+  function handleClose() {
+    stopCamera()
+    onClose()
   }
 
   return (
-    <div className={styles.backdrop} onClick={handleBackdropClick}>
-      <div className={styles.modal}>
-        {mode === 'menu' ? (
-          <>
-            <div className={styles.title}>{ep.pickerTitle}</div>
-            <div className={styles.options}>
-              <button className={styles.optionBtn} onClick={() => fileRef.current.click()}>
-                <span className={styles.optionIcon}>🖼️</span>
-                <span>{ep.pickerUpload}</span>
-              </button>
-              <button className={styles.optionBtn} onClick={startCamera}>
-                <span className={styles.optionIcon}>📷</span>
-                <span>{ep.pickerCamera}</span>
-              </button>
-              <button className={`${styles.optionBtn} ${styles.optionDanger}`} onClick={onRemove}>
-                <span className={styles.optionIcon}>🗑️</span>
-                <span>{ep.pickerRemove}</span>
-              </button>
-            </div>
-            <button className={styles.cancelBtn} onClick={onClose}>{ep.cancel}</button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={handleFileChange}
-            />
-          </>
-        ) : (
-          <>
-            <div className={styles.title}>{ep.pickerCameraTitle}</div>
+    <Dialog open onClose={handleClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ textAlign: 'center', fontSize: 16, fontWeight: 600 }}>
+        {mode === 'menu' ? ep.pickerTitle : ep.pickerCameraTitle}
+      </DialogTitle>
+
+      {mode === 'menu' ? (
+        <>
+          <DialogContent dividers sx={{ p: 0 }}>
+            <List disablePadding>
+              <ListItemButton onClick={() => fileRef.current.click()}>
+                <ListItemIcon sx={{ minWidth: 40 }}><ImageIcon /></ListItemIcon>
+                <ListItemText primary={ep.pickerUpload} />
+              </ListItemButton>
+
+              <ListItemButton onClick={startCamera}>
+                <ListItemIcon sx={{ minWidth: 40 }}><PhotoCameraIcon /></ListItemIcon>
+                <ListItemText primary={ep.pickerCamera} />
+              </ListItemButton>
+
+              {/* Gỡ ảnh là hành động khó hoàn tác nên để tông đỏ */}
+              <ListItemButton onClick={onRemove} sx={{ color: 'error.main' }}>
+                <ListItemIcon sx={{ minWidth: 40, color: 'error.main' }}><DeleteIcon /></ListItemIcon>
+                <ListItemText primary={ep.pickerRemove} />
+              </ListItemButton>
+            </List>
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, py: 2 }}>
+            <Button variant="outline-secondary" fullWidth onClick={handleClose}>
+              {ep.cancel}
+            </Button>
+          </DialogActions>
+
+          {/* Input file ẩn — bấm nút phía trên sẽ kích hoạt nó */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+        </>
+      ) : (
+        <>
+          <DialogContent dividers>
             {cameraError ? (
-              <div className={styles.cameraError}>{cameraError}</div>
+              <Typography sx={{ fontSize: 14, color: 'error.main', textAlign: 'center', py: 3 }}>
+                {cameraError}
+              </Typography>
             ) : (
-              <video
+              <Box
+                component="video"
                 ref={videoRef}
-                className={styles.video}
                 autoPlay
                 playsInline
                 muted
+                sx={{ width: '100%', borderRadius: 2, display: 'block', bgcolor: '#000' }}
               />
             )}
-            <div className={styles.cameraActions}>
-              <button className={styles.cancelBtn} onClick={() => { stopCamera(); setMode('menu') }}>
-                {ep.pickerCameraBack}
-              </button>
-              {!cameraError && (
-                <button className={styles.captureBtn} onClick={capturePhoto}>
-                  📸 {ep.pickerCameraCapture}
-                </button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          </DialogContent>
+
+          <DialogActions sx={{ px: 3, py: 2, gap: 1.25 }}>
+            <Button
+              variant="outline-secondary"
+              fullWidth
+              onClick={() => { stopCamera(); setMode('menu') }}
+            >
+              {ep.pickerCameraBack}
+            </Button>
+            {!cameraError && (
+              <Button fullWidth onClick={capturePhoto}>
+                {ep.pickerCameraCapture}
+              </Button>
+            )}
+          </DialogActions>
+        </>
+      )}
+    </Dialog>
   )
 }

@@ -10,18 +10,32 @@
 import { useState, useCallback } from 'react'
 import StoryBar from '../../components/story/StoryBar'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
 import { useAuth } from '../../hooks/useAuth'
 import { getFeed, getUserPosts } from '../../features/post/postAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
 import api from '../../services/api'
 import PostCard from '../../components/post/PostCard'
-import Spinner from '../../components/common/Spinner'
+import { FeedSkeleton } from '../../components/common/Skeletons'
+import { staggerIn } from '../../theme/animations'
 import Avatar from '../../components/common/Avatar'
 import Icon from '../../components/common/Icon'
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll'
-import styles from './Home.module.css'
+
+// Ngưỡng ẩn cột phải: dưới mức này màn hình không đủ chỗ cho 2 cột
+var HIDE_PANEL = '@media (max-width:1160px)'
+var MOBILE = '@media (max-width:768px)'
+
+// Cắt chữ thành một dòng, quá dài thì thêm dấu ba chấm
+var ellipsis = {
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}
 
 export default function Home() {
   const { user } = useAuth()
@@ -171,23 +185,39 @@ export default function Home() {
   }
 
   return (
-    <div className={styles.homeLayout}>
-      <div className={styles.feedColumn}>
+    <Box
+      sx={{
+        width: '100%',
+        maxWidth: 1180,
+        mx: 'auto',
+        px: 2,
+        py: 3,
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '52px',
+        [HIDE_PANEL]: { maxWidth: 760, gap: 0 },
+        [MOBILE]: { px: 0, pt: 2, pb: 10 },
+      }}
+    >
+      <Box sx={{ width: '100%', maxWidth: 614, flex: '0 0 auto', [MOBILE]: { maxWidth: '100%' } }}>
         <StoryBar />
-        {isLoading && <Spinner fullPage />}
+        {isLoading && <FeedSkeleton />}
 
         {!isLoading && posts.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink-muted)' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>📸</div>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>{t.home.noPosts}</div>
-            <div style={{ marginTop: 8 }}>{t.home.noPostsDesc}</div>
-          </div>
+          <Box sx={{ textAlign: 'center', p: 5, color: 'text.secondary' }}>
+            <Box sx={{ fontSize: 48, mb: 1.5 }}>📸</Box>
+            <Typography sx={{ fontWeight: 600, fontSize: 16 }}>{t.home.noPosts}</Typography>
+            <Typography sx={{ mt: 1 }}>{t.home.noPostsDesc}</Typography>
+          </Box>
         )}
 
-        {posts.map(function (post) {
+        {posts.map(function (post, i) {
           return (
-            // onUpdated: sau khi edit caption, refetch feed để hiện caption mới nhất
-            <PostCard key={post._id} post={post} onDelete={handleDelete} onUpdated={refetch} />
+            // Bọc thêm một lớp Box chỉ để chạy hiệu ứng so le — không đụng vào PostCard
+            <Box key={post._id} sx={staggerIn(i)}>
+              {/* onUpdated: sau khi edit caption, refetch feed để hiện caption mới nhất */}
+              <PostCard post={post} onDelete={handleDelete} onUpdated={refetch} />
+            </Box>
           )
         })}
 
@@ -206,70 +236,121 @@ export default function Home() {
         })}
 
         {/* Sentinel — IntersectionObserver theo dõi phần tử này để trigger load more */}
-        <div ref={sentinelRef} style={{ height: 20 }} />
-        {isFetchingNextPage && <Spinner />}
-      </div>
+        <Box ref={sentinelRef} sx={{ height: 20 }} />
+        {isFetchingNextPage && <FeedSkeleton count={1} />}
+      </Box>
 
       {/* Panel bên phải — giống Instagram, ẩn trên màn hình nhỏ */}
-      <aside className={styles.rightPanel}>
-        <div className={styles.rightPanelSticky}>
+      <Box
+        component="aside"
+        sx={{ width: 320, flex: '0 0 320px', [HIDE_PANEL]: { display: 'none' } }}
+      >
+        {/* sticky: panel bám theo khi cuộn feed, không trôi mất */}
+        <Box sx={{ position: 'sticky', top: 28, pt: 1 }}>
           {user && (
-            <div className={styles.meRow}>
-              <Link to={`/${user.username}`} className={styles.meAvatar}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, mb: 4.25 }}>
+              <Link component={RouterLink} to={`/${user.username}`} sx={{ flex: '0 0 auto' }}>
                 <Avatar src={user.avatar || user.avatarUrl} username={user.username} size="lg" />
               </Link>
-              <div className={styles.meInfo}>
-                <Link to={`/${user.username}`} className={styles.usernameLink}>
+
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Link
+                  component={RouterLink}
+                  to={`/${user.username}`}
+                  underline="none"
+                  sx={{
+                    ...ellipsis,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: .5,
+                    color: 'text.primary',
+                    fontSize: 15,
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                  }}
+                >
                   {user.username}
                   {user.isTrusted && <Icon name="verified" size={13} />}
                 </Link>
-                <div className={styles.fullName}>{user.fullName}</div>
-              </div>
-            </div>
+                <Typography sx={{ ...ellipsis, mt: .25, color: 'text.secondary', fontSize: 15, fontWeight: 600 }}>
+                  {user.fullName}
+                </Typography>
+              </Box>
+            </Box>
           )}
 
-          <div className={styles.suggestHeader}>
-            <strong>{t.home.suggestedTitle}</strong>
-            <Link to="/suggested">{t.home.seeAll}</Link>
-          </div>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 2.25 }}>
+            <Typography component="strong" sx={{ fontSize: 16, fontWeight: 800 }}>
+              {t.home.suggestedTitle}
+            </Typography>
+            <Link
+              component={RouterLink}
+              to="/suggested"
+              underline="none"
+              sx={{ fontSize: 14, fontWeight: 800, color: '#7c94ff', '&:hover': { color: '#a8b7ff' } }}
+            >
+              {t.home.seeAll}
+            </Link>
+          </Box>
 
-          <div className={styles.suggestList}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {suggestions.length === 0 ? (
-              <div className={styles.emptySuggest}>{t.home.noSuggestions}</div>
+              <Typography sx={{ color: 'text.secondary', fontSize: 13, fontWeight: 600, py: 1.5 }}>
+                {t.home.noSuggestions}
+              </Typography>
             ) : (
               suggestions.map(function (item) {
                 return (
-                  <div key={item._id} className={styles.suggestRow}>
-                    <Link to={`/${item.username}`} className={styles.suggestProfile}>
+                  <Box key={item._id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Link
+                      component={RouterLink}
+                      to={`/${item.username}`}
+                      underline="none"
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0, color: 'text.primary' }}
+                    >
                       <Avatar src={item.avatar || item.avatarUrl} username={item.username} size="md" />
-                      <span>
-                        <strong>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Box sx={{ ...ellipsis, display: 'flex', alignItems: 'center', gap: .5, fontSize: 15, fontWeight: 800 }}>
                           {item.username}
                           {item.isTrusted && <Icon name="verified" size={14} />}
-                        </strong>
-                        <small>{item.fullName || t.home.suggestedTitle}</small>
-                      </span>
+                        </Box>
+                        <Typography sx={{ ...ellipsis, color: 'text.secondary', fontSize: 13, fontWeight: 600 }}>
+                          {item.fullName || t.home.suggestedTitle}
+                        </Typography>
+                      </Box>
                     </Link>
-                    <button
+
+                    <Box
+                      component="button"
                       type="button"
-                      className={styles.followBtn}
                       disabled={followMutation.isPending}
                       onClick={function () { handleFollow(item._id) }}
+                      sx={{
+                        border: 0,
+                        background: 'transparent',
+                        color: '#7c94ff',
+                        font: 'inherit',
+                        fontSize: 14,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        p: 0,
+                        '&:hover': { color: '#a8b7ff' },
+                        '&:disabled': { opacity: .55, cursor: 'not-allowed' },
+                      }}
                     >
                       {t.common.follow}
-                    </button>
-                  </div>
+                    </Box>
+                  </Box>
                 )
               })
             )}
-          </div>
+          </Box>
 
-          <div className={styles.footerLinks}>
-            <p>{t.home.footer}</p>
-          </div>
-        </div>
-      </aside>
-
-    </div>
+          <Typography sx={{ mt: 6, color: 'text.secondary', fontSize: 12, lineHeight: 1.55, fontWeight: 600 }}>
+            {t.home.footer}
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
   )
 }

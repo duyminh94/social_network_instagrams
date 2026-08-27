@@ -1,17 +1,25 @@
 // pages/auth/Login.jsx
+// Trang đăng nhập — bố cục 2 cột: ảnh giới thiệu bên trái, form bên phải
+//
+// Form dùng react-hook-form như cũ, chỉ thay lớp hiển thị từ react-bootstrap
+//   sang TextField của MUI: lỗi validate đưa vào error + helperText
+
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
-import { Form } from 'react-bootstrap'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { GoogleLogin } from '@react-oauth/google'
+import Box from '@mui/material/Box'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
 import { useAuth } from '../../hooks/useAuth'
 import { login as loginAPI, googleLogin } from '../../features/auth/authAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Button from '../../components/common/Button'
 import { Wordmark } from '../../components/common/Icon'
-import aptechImg from '../../assets/images/aptech.jpg'
-import styles from './Auth.module.css'
+import AuthBackground from '../../components/auth/AuthBackground'
+import * as s from './authStyles'
 
 export default function Login() {
   const { login, isAuthenticated, user } = useAuth()
@@ -53,6 +61,8 @@ export default function Login() {
       navigate(getRedirectPath(res.data.user))
     } catch (err) {
       const message = err.response?.data?.message || t.auth.login.failed
+      // Tài khoản chưa kích hoạt thì gắn lỗi vào ô email kèm link gửi lại mail,
+      // các lỗi khác chỉ cần toast là đủ
       if (message.includes('chưa được kích hoạt') || message.includes('kích hoạt')) {
         setError('email', { type: 'server', message })
       } else {
@@ -62,88 +72,89 @@ export default function Login() {
   }
 
   return (
-    <div className={styles.splitPanel}>
-      {/* Left — image panel */}
-      <div className={styles.imageSide}>
-        <img src={aptechImg} alt="" />
-        <div className={styles.imageOverlay} />
-        <div className={styles.imageBranding}>
-          <div style={{ marginBottom: 20 }}><Wordmark size={40} color="#fff" /></div>
-          <h1>Connect with<br />your world</h1>
-          <p>Share moments, follow friends, and discover what's happening around you.</p>
-        </div>
-      </div>
+    <Box sx={s.splitPanel}>
+      {/* Cột trái — nền động: quỹ đạo icon mạng xã hội trên lưới chòm sao */}
+      <Box sx={s.imageSide}>
+        <AuthBackground>
+          <Box sx={{ mb: 2.5 }}><Wordmark size={40} color="#fff" /></Box>
+          <Typography component="h1" sx={s.brandingTitle}>
+            Connect with<br />your world
+          </Typography>
+          <Typography sx={s.brandingDesc}>
+            Share moments, follow friends, and discover what&apos;s happening around you.
+          </Typography>
+        </AuthBackground>
+      </Box>
 
-      {/* Right — form panel */}
-      <div className={styles.formSide}>
-        <div className={styles.formSideInner}>
-          {/* Logo visible only on mobile (image panel hidden) */}
-          <div style={{ display: 'none' }} className="d-flex d-md-none justify-content-center mb-4">
+      {/* Cột phải — form đăng nhập */}
+      <Box sx={s.formSide}>
+        <Box sx={s.formSideInner}>
+          {/* Logo chỉ hiện trên mobile, vì lúc đó cột ảnh đã bị ẩn */}
+          <Box sx={{ display: 'none', justifyContent: 'center', mb: 3, [s.MOBILE]: { display: 'flex' } }}>
             <Wordmark size={32} color="#fff" />
-          </div>
+          </Box>
 
-          <h2 style={{ fontWeight: 700, fontSize: 24, marginBottom: 6 }}>Log in</h2>
-          <p style={{ color: 'var(--ink-muted)', fontSize: 14, marginBottom: 28 }}>
-            Welcome back! Enter your details below.
-          </p>
+          <Typography component="h2" sx={s.pageTitle}>Log in</Typography>
+          <Typography sx={s.pageDesc}>Welcome back! Enter your details below.</Typography>
 
-          <Form onSubmit={handleSubmit(onSubmit)}>
-            <Form.Group className="mb-3">
-              <Form.Label style={{ fontWeight: 500, fontSize: 14 }}>Email or Username</Form.Label>
-              <Form.Control
-                type="text"
-                placeholder={t.auth.login.emailPlaceholder}
-                {...register('email', { required: t.auth.login.emailRequired })}
-                isInvalid={!!errors.email}
-              />
-              <Form.Control.Feedback type="invalid">
-                {errors.email?.message}
-                {errors.email?.type === 'server' && (
-                  <span>
-                    {' '}— <Link to="/resend-verification" style={{ color: 'var(--accent)' }}>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+            <TextField
+              label="Email or Username"
+              placeholder={t.auth.login.emailPlaceholder}
+              fullWidth
+              margin="dense"
+              slotProps={s.shrinkLabel}
+              {...register('email', { required: t.auth.login.emailRequired })}
+              error={!!errors.email}
+              helperText={
+                errors.email?.type === 'server' ? (
+                  <>
+                    {errors.email.message}{' — '}
+                    <Link component={RouterLink} to="/resend-verification">
                       {t.auth.login.resendLink}
                     </Link>
-                  </span>
-                )}
-              </Form.Control.Feedback>
-            </Form.Group>
+                  </>
+                ) : errors.email?.message
+              }
+            />
 
-            <Form.Group className="mb-2">
-              <Form.Label style={{ fontWeight: 500, fontSize: 14 }}>Password</Form.Label>
-              <Form.Control
-                type="password"
-                placeholder={t.auth.login.passwordPlaceholder}
-                {...register('password', {
-                  required: t.auth.login.passwordRequired,
-                  minLength: { value: 6, message: t.auth.login.minChars },
-                })}
-                isInvalid={!!errors.password}
-              />
-              <Form.Control.Feedback type="invalid">
-                {errors.password?.message}
-              </Form.Control.Feedback>
-            </Form.Group>
+            <TextField
+              label="Password"
+              type="password"
+              placeholder={t.auth.login.passwordPlaceholder}
+              fullWidth
+              margin="dense"
+              slotProps={s.shrinkLabel}
+              {...register('password', {
+                required: t.auth.login.passwordRequired,
+                minLength: { value: 6, message: t.auth.login.minChars },
+              })}
+              error={!!errors.password}
+              helperText={errors.password?.message}
+            />
 
-            <div style={{ textAlign: 'right', marginBottom: 20 }}>
-              <Link to="/forgot-password" style={{ fontSize: 13, color: 'var(--accent)' }}>
+            <Box sx={{ textAlign: 'right', mb: 2.5 }}>
+              <Link component={RouterLink} to="/forgot-password" sx={{ fontSize: 13 }}>
                 {t.auth.login.forgotPassword}
               </Link>
-            </div>
+            </Box>
 
-            <Button type="submit" className="btn-primary w-100" loading={isSubmitting}>
+            <Button type="submit" fullWidth loading={isSubmitting}>
               {t.auth.login.button}
             </Button>
-          </Form>
+          </Box>
 
           {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                <span style={{ fontSize: 13, color: 'var(--ink-muted)', fontWeight: 600 }}>OR</span>
-                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              </div>
+              <Box sx={s.dividerRow}>
+                <Box sx={s.dividerLine} />
+                <Typography sx={{ fontSize: 13, color: 'text.secondary', fontWeight: 600 }}>
+                  OR
+                </Typography>
+                <Box sx={s.dividerLine} />
+              </Box>
 
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                 <GoogleLogin
                   onSuccess={onGoogleSuccess}
                   onError={() => toast.error('Google login thất bại')}
@@ -151,18 +162,18 @@ export default function Login() {
                   shape="rectangular"
                   width="320"
                 />
-              </div>
+              </Box>
             </>
           )}
 
-          <p style={{ textAlign: 'center', marginTop: 24, fontSize: 14, color: 'var(--ink-muted)' }}>
+          <Typography sx={{ textAlign: 'center', mt: 3, fontSize: 14, color: 'text.secondary' }}>
             Don&apos;t have an account?{' '}
-            <Link to="/register" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+            <Link component={RouterLink} to="/register" sx={{ fontWeight: 600 }}>
               Sign up
             </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
   )
 }

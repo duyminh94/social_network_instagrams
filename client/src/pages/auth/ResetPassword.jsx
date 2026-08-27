@@ -9,15 +9,18 @@
 
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
-import { Form } from 'react-bootstrap'
-import { useSearchParams, useNavigate, Link } from 'react-router-dom'
+import { useSearchParams, useNavigate, Link as RouterLink } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
 import { useAuth } from '../../hooks/useAuth'
 import { resetPassword as resetPasswordAPI } from '../../features/auth/authAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Button from '../../components/common/Button'
 import { Wordmark } from '../../components/common/Icon'
-import styles from './Auth.module.css'
+import * as s from './authStyles'
 
 export default function ResetPassword() {
   const { isAuthenticated } = useAuth()
@@ -59,61 +62,61 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className={styles.wrapper}>
-      <div style={{ width: '100%', maxWidth: 400, padding: '0 16px' }}>
-        <div className={styles.box}>
-          <div className={styles.logo}><Wordmark size={32} color="#fff" /></div>
-          <p style={{ textAlign: 'center', color: 'var(--ig-text-light)', marginBottom: 20, fontSize: 14 }}>
+    <Box sx={s.wrapper}>
+      <Box sx={{ width: '100%', maxWidth: 400, px: 2 }}>
+        <Box sx={s.box}>
+          <Box sx={s.logoRow}><Wordmark size={32} color="#fff" /></Box>
+
+          <Typography sx={{ textAlign: 'center', color: 'text.secondary', mb: 2.5, fontSize: 14 }}>
             {t.auth.resetPassword.description}
-          </p>
+          </Typography>
 
-          <Form onSubmit={handleSubmit(onSubmit)}>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)}>
             {/* Mật khẩu mới */}
-            <Form.Group className="mb-3">
-              <Form.Control
-                type="password"
-                placeholder={t.auth.resetPassword.newPasswordPlaceholder}
-                {...register('password', {
-                  required: t.auth.resetPassword.passwordRequired,
-                  minLength: { value: 6, message: t.auth.resetPassword.minChars },
-                })}
-                isInvalid={!!errors.password}
-              />
-              <Form.Control.Feedback type="invalid">
-                {errors.password?.message}
-              </Form.Control.Feedback>
-            </Form.Group>
+            <TextField
+              type="password"
+              placeholder={t.auth.resetPassword.newPasswordPlaceholder}
+              fullWidth
+              margin="dense"
+              {...register('password', {
+                required: t.auth.resetPassword.passwordRequired,
+                minLength: { value: 6, message: t.auth.resetPassword.minChars },
+              })}
+              error={!!errors.password}
+              helperText={errors.password?.message}
+            />
 
-            {/* Xác nhận mật khẩu */}
-            <Form.Group className="mb-3">
-              <Form.Control
-                type="password"
-                placeholder={t.auth.resetPassword.confirmPlaceholder}
-                {...register('confirm', {
-                  required: t.auth.resetPassword.confirmRequired,
-                  validate: function (value) {
-                    return value === password || t.auth.resetPassword.confirmMismatch
-                  },
-                })}
-                isInvalid={!!errors.confirm}
-              />
-              <Form.Control.Feedback type="invalid">
-                {errors.confirm?.message}
-              </Form.Control.Feedback>
-            </Form.Group>
+            {/* Xác nhận mật khẩu — validate so khớp với ô phía trên */}
+            <TextField
+              type="password"
+              placeholder={t.auth.resetPassword.confirmPlaceholder}
+              fullWidth
+              margin="dense"
+              {...register('confirm', {
+                required: t.auth.resetPassword.confirmRequired,
+                validate: function (value) {
+                  return value === password || t.auth.resetPassword.confirmMismatch
+                },
+              })}
+              error={!!errors.confirm}
+              helperText={errors.confirm?.message}
+              sx={{ mb: 2 }}
+            />
 
-            <Button type="submit" className="btn-primary w-100" loading={isSubmitting}>
+            <Button type="submit" fullWidth loading={isSubmitting}>
               {t.auth.resetPassword.button}
             </Button>
-          </Form>
-        </div>
+          </Box>
+        </Box>
 
-        <div className={styles.box} style={{ marginTop: 12 }}>
-          <div className={styles.switchText}>
-            <Link to="/login">{t.auth.resetPassword.backToLogin}</Link>
-          </div>
-        </div>
-      </div>
-    </div>
+        <Box sx={{ ...s.box, mt: 1.5, py: 2 }}>
+          <Box sx={s.switchText}>
+            <Link component={RouterLink} to="/login" sx={{ fontWeight: 600 }}>
+              {t.auth.resetPassword.backToLogin}
+            </Link>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   )
 }

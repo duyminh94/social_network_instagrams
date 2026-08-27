@@ -1,7 +1,22 @@
+// pages/admin/AdminContentList.jsx
+// Danh sách bài viết / reel / story cho admin — tìm kiếm và phân trang
+//
+// contentType lấy từ URL: 'post' | 'reel' | 'story'
+
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Badge, Form, Pagination } from 'react-bootstrap'
 import { useQuery } from '@tanstack/react-query'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import TextField from '@mui/material/TextField'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import Chip from '@mui/material/Chip'
+import Pagination from '@mui/material/Pagination'
+import IconButton from '@mui/material/IconButton'
 import api from '../../services/api'
 import Avatar from '../../components/common/Avatar'
 import Icon from '../../components/common/Icon'
@@ -9,7 +24,7 @@ import Spinner from '../../components/common/Spinner'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTime } from '../../utils/formatTime'
 import { goAdmin } from '../../utils/adminNavigation'
-import styles from './AdminContent.module.css'
+import * as s from './adminStyles'
 
 export default function AdminContentList() {
   var { contentType } = useParams()
@@ -42,47 +57,127 @@ export default function AdminContentList() {
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.pageHeader}>
-        <div><h2>{labels[contentType] || t.admin.content.title}</h2><p>{t.admin.content.listDescription}</p></div>
-      </div>
+    <Box sx={s.page}>
+      <Box sx={s.pageHeader}>
+        <Box>
+          <Typography component="h2" sx={s.pageTitle}>
+            {labels[contentType] || t.admin.content.title}
+          </Typography>
+          <Typography sx={s.pageSubtitle}>{t.admin.content.listDescription}</Typography>
+        </Box>
+      </Box>
 
-      <Form.Control
+      <TextField
         type="search"
-        className={styles.searchInput}
+        size="small"
+        fullWidth
+        sx={s.searchInput}
         placeholder={t.admin.content.searchPlaceholder}
         value={search}
         onChange={function (event) { setSearch(event.target.value); setPage(1) }}
       />
 
-      {contentQuery.isLoading ? <Spinner fullPage /> : contentQuery.isError ? (
-        <div className={styles.empty}>{t.admin.content.loadFailed}</div>
+      {contentQuery.isLoading ? (
+        <Spinner fullPage />
+      ) : contentQuery.isError ? (
+        <Box sx={s.empty}>{t.admin.content.loadFailed}</Box>
       ) : items.length === 0 ? (
-        <div className={styles.empty}>{t.admin.content.noContent}</div>
+        <Box sx={s.empty}>{t.admin.content.noContent}</Box>
       ) : (
-        <div className={styles.contentTableWrap}>
-          <table className={styles.contentTable}>
-            <thead><tr><th>{t.admin.content.preview}</th><th>{t.admin.content.author}</th><th>{t.admin.content.content}</th><th>{t.admin.content.publishedAt}</th><th>{t.admin.content.status}</th><th>{t.admin.content.actions}</th></tr></thead>
-            <tbody>
+        <Box sx={s.tableWrap}>
+          <Table sx={s.table}>
+            <TableHead>
+              <TableRow>
+                <TableCell>{t.admin.content.preview}</TableCell>
+                <TableCell>{t.admin.content.author}</TableCell>
+                <TableCell>{t.admin.content.content}</TableCell>
+                <TableCell>{t.admin.content.publishedAt}</TableCell>
+                <TableCell>{t.admin.content.status}</TableCell>
+                <TableCell>{t.admin.content.actions}</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {items.map(function (content) {
                 var preview = getPreview(content)
+                var firstMedia = content.media?.[0]
+                // Video chưa có ảnh thu nhỏ thì phát khung đầu bằng thẻ video
+                var isRawVideo = firstMedia?.mediaType === 'video' && !firstMedia?.thumbnailUrl
+
                 return (
-                  <tr key={content._id}>
-                    <td><div className={styles.preview}>{preview ? (content.media?.[0]?.mediaType === 'video' && !content.media?.[0]?.thumbnailUrl ? <video src={preview} muted preload="metadata" /> : <img src={preview} alt="" />) : <Icon name="image" size={22} />}</div></td>
-                    <td><button type="button" className={styles.authorButton} disabled={!content.author?._id} onClick={function () { goAdmin(navigate, '/admin/users/' + content.author._id) }}><Avatar src={content.author?.avatarUrl} username={content.author?.username} size="sm" /><span><strong>{content.author?.fullName || content.author?.username || t.admin.content.unknown}</strong><span>@{content.author?.username || t.admin.content.unknown}</span><small>{content.author?.email}</small></span></button></td>
-                    <td><p className={styles.caption}>{content.caption || t.admin.content.noCaption}</p></td>
-                    <td className={styles.dateCell}>{formatDateTime(content.createdAt)}</td>
-                    <td><Badge bg={content.isDeleted ? 'secondary' : 'success'}>{content.isDeleted ? t.admin.content.hidden : t.admin.content.visible}</Badge></td>
-                    <td><button type="button" className={styles.iconButton} title={t.admin.content.viewDetail} aria-label={t.admin.content.viewDetail} onClick={function () { goAdmin(navigate, '/admin/content/' + contentType + '/' + content._id) }}><Icon name="eye" size={18} /></button></td>
-                  </tr>
+                  <TableRow key={content._id}>
+                    <TableCell>
+                      <Box sx={s.preview}>
+                        {preview
+                          ? (isRawVideo
+                              ? <video src={preview} muted preload="metadata" />
+                              : <img src={preview} alt="" />)
+                          : <Icon name="image" size={22} />}
+                      </Box>
+                    </TableCell>
+
+                    <TableCell>
+                      <Box
+                        component="button"
+                        type="button"
+                        sx={s.authorButton}
+                        disabled={!content.author?._id}
+                        onClick={function () { goAdmin(navigate, '/admin/users/' + content.author._id) }}
+                      >
+                        <Avatar src={content.author?.avatarUrl} username={content.author?.username} size="sm" />
+                        <Box component="span">
+                          <strong>{content.author?.fullName || content.author?.username || t.admin.content.unknown}</strong>
+                          <span>@{content.author?.username || t.admin.content.unknown}</span>
+                          <small>{content.author?.email}</small>
+                        </Box>
+                      </Box>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography sx={s.caption}>
+                        {content.caption || t.admin.content.noCaption}
+                      </Typography>
+                    </TableCell>
+
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {formatDateTime(content.createdAt)}
+                    </TableCell>
+
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        color={content.isDeleted ? 'default' : 'success'}
+                        label={content.isDeleted ? t.admin.content.hidden : t.admin.content.visible}
+                      />
+                    </TableCell>
+
+                    <TableCell>
+                      <IconButton
+                        size="small"
+                        title={t.admin.content.viewDetail}
+                        aria-label={t.admin.content.viewDetail}
+                        onClick={function () { goAdmin(navigate, '/admin/content/' + contentType + '/' + content._id) }}
+                      >
+                        <Icon name="eye" size={18} />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Box>
       )}
 
-      {totalPages > 1 && <Pagination className={styles.pagination}><Pagination.Prev disabled={page <= 1} onClick={function () { setPage(function (value) { return value - 1 }) }} /><Pagination.Item active>{page} / {totalPages}</Pagination.Item><Pagination.Next disabled={page >= totalPages} onClick={function () { setPage(function (value) { return value + 1 }) }} /></Pagination>}
-    </div>
+      {totalPages > 1 && (
+        <Box sx={s.paginationRow}>
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={function (_, value) { setPage(value) }}
+            color="primary"
+          />
+        </Box>
+      )}
+    </Box>
   )
 }

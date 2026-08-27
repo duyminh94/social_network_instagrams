@@ -1,12 +1,33 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+// components/user/FollowListModal.jsx
+// Hộp thoại danh sách người theo dõi / đang theo dõi
+//
+// Dialog của MUI lo sẵn phần đóng bằng Esc, khoá cuộn trang nền và khoá focus,
+//   nên bản này bỏ được useEffect tự gắn listener bàn phím như trước
+
+import { useState } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import IconButton from '@mui/material/IconButton'
+import CloseIcon from '@mui/icons-material/Close'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
 import api from '../../services/api'
 import { useAuth } from '../../hooks/useAuth'
 import Avatar from '../common/Avatar'
 import Spinner from '../common/Spinner'
-import styles from './FollowListModal.module.css'
+import Button from '../common/Button'
+
+// Cắt chữ thành một dòng, quá dài thì thêm dấu ba chấm
+var ellipsis = {
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}
 
 export default function FollowListModal({ userId, type, onClose }) {
   const { user: me } = useAuth()
@@ -46,69 +67,91 @@ export default function FollowListModal({ userId, type, onClose }) {
     }
   }
 
-  useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', handleKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKey)
-      document.body.style.overflow = prev
-    }
-  }, [onClose])
-
   return (
-    <div className={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={styles.dialog}>
-        <div className={styles.header}>
-          <span className={styles.title}>
-            {type === 'followers' ? 'Followers' : 'Following'}
-          </span>
-          <button className={styles.closeBtn} onClick={onClose}>✕</button>
-        </div>
+    <Dialog
+      open
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      // Giới hạn chiều cao để danh sách dài thì cuộn bên trong, không đẩy dài cả trang
+      slotProps={{ paper: { sx: { maxHeight: '70vh' } } }}
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1.75, pr: 1 }}>
+        <Typography component="span" sx={{ fontSize: 16, fontWeight: 600 }}>
+          {type === 'followers' ? 'Followers' : 'Following'}
+        </Typography>
+        <IconButton onClick={onClose} size="small" aria-label="Close">
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </DialogTitle>
 
-        <div className={styles.list}>
-          {isLoading ? (
-            <div className={styles.center}><Spinner /></div>
-          ) : isError ? (
-            <div className={styles.empty}>
-              {error?.response?.status === 403
-                ? 'Tài khoản riêng tư — bạn chưa được phép xem danh sách này.'
-                : 'Không thể tải dữ liệu.'}
-            </div>
-          ) : users.length === 0 ? (
-            <div className={styles.empty}>
-              {type === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
-            </div>
-          ) : (
-            users.map((u) => {
-              const isMe = String(me?._id || me?.id) === String(u._id)
-              const key = String(u._id)
-              // Ưu tiên override local (vừa bấm), nếu chưa có thì lấy theo server
-              const isFollowing = key in followOverrides ? followOverrides[key] : !!u.isFollowing
-              return (
-                <div key={u._id} className={styles.userRow}>
-                  <Link to={`/${u.username}`} onClick={onClose} className={styles.userInfo}>
-                    <Avatar src={u.avatarUrl || u.avatar} username={u.username} size="md" />
-                    <div>
-                      <div className={styles.username}>{u.username}</div>
-                      {u.fullName && <div className={styles.fullName}>{u.fullName}</div>}
-                    </div>
-                  </Link>
-                  {!isMe && (
-                    <button
-                      className={isFollowing ? styles.btnFollowing : styles.btnFollow}
-                      onClick={() => handleFollow(String(u._id), isFollowing)}
-                    >
-                      {isFollowing ? 'Following' : 'Follow'}
-                    </button>
-                  )}
-                </div>
-              )
-            })
-          )}
-        </div>
-      </div>
-    </div>
+      <DialogContent dividers sx={{ p: 0 }}>
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><Spinner /></Box>
+        ) : isError ? (
+          <Typography sx={{ textAlign: 'center', px: 2, py: 5, color: 'text.secondary', fontSize: 14 }}>
+            {error?.response?.status === 403
+              ? 'Tài khoản riêng tư — bạn chưa được phép xem danh sách này.'
+              : 'Không thể tải dữ liệu.'}
+          </Typography>
+        ) : users.length === 0 ? (
+          <Typography sx={{ textAlign: 'center', px: 2, py: 5, color: 'text.secondary', fontSize: 14 }}>
+            {type === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}
+          </Typography>
+        ) : (
+          users.map((u) => {
+            const isMe = String(me?._id || me?.id) === String(u._id)
+            const key = String(u._id)
+            // Ưu tiên override local (vừa bấm), nếu chưa có thì lấy theo server
+            const isFollowing = key in followOverrides ? followOverrides[key] : !!u.isFollowing
+
+            return (
+              <Box
+                key={u._id}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  px: 2,
+                  py: 1.25,
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+              >
+                <Link
+                  component={RouterLink}
+                  to={`/${u.username}`}
+                  onClick={onClose}
+                  underline="none"
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}
+                >
+                  <Avatar src={u.avatarUrl || u.avatar} username={u.username} size="md" />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ ...ellipsis, fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
+                      {u.username}
+                    </Typography>
+                    {u.fullName && (
+                      <Typography sx={{ ...ellipsis, fontSize: 13, color: 'text.secondary' }}>
+                        {u.fullName}
+                      </Typography>
+                    )}
+                  </Box>
+                </Link>
+
+                {!isMe && (
+                  <Button
+                    size="sm"
+                    variant={isFollowing ? 'outline-secondary' : 'primary'}
+                    onClick={() => handleFollow(String(u._id), isFollowing)}
+                    sx={{ ml: 1.5, flexShrink: 0, whiteSpace: 'nowrap' }}
+                  >
+                    {isFollowing ? 'Following' : 'Follow'}
+                  </Button>
+                )}
+              </Box>
+            )
+          })
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

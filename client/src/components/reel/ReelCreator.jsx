@@ -5,7 +5,8 @@ import { createReel } from '../../features/reel/reelAPI'
 import { generateCaption } from '../../features/ai/aiAPI'
 import { trimAndExportVideo, formatFileSize } from '../../utils/videoTrim'
 import { useLanguage } from '../../i18n/LanguageContext'
-import styles from './ReelCreator.module.css'
+import Box from '@mui/material/Box'
+import * as s from './reelCreatorStyles'
 
 const VIDEO_FILTERS = [
   { id: 'none',     name: 'Gốc',       css: 'none' },
@@ -418,324 +419,328 @@ export default function ReelCreator({ onClose, onCreated }) {
 
   // ─────────────────────────────────────────────────────────────────────
   return (
-    <div className={styles.backdrop} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className={`${styles.modal} ${step === 'edit' ? styles.editModal : ''}`}>
+    <Box sx={s.backdrop} onClick={e => e.target === e.currentTarget && onClose()}>
+      <Box sx={s.modal(step === 'edit')}>
 
         {/* ── SOURCE ── */}
         {step === 'source' && (
-          <div className={styles.sourceStep}>
-            <div className={styles.stepTitle}>{t.reelCreator.title}</div>
-            <div className={styles.sourceOptions}>
-              <button className={styles.sourceBtn} onClick={startCamera}>
-                <span className={styles.sourceBtnIcon}>📷</span>
-                <span className={styles.sourceBtnLabel}>{t.reelCreator.recordOption}</span>
-                <span className={styles.sourceBtnDesc}>{t.reelCreator.recordDesc}</span>
-              </button>
-              <label className={styles.sourceBtn}>
-                <span className={styles.sourceBtnIcon}>🖼️</span>
-                <span className={styles.sourceBtnLabel}>{t.reelCreator.uploadOption}</span>
-                <span className={styles.sourceBtnDesc}>{t.reelCreator.uploadDesc}</span>
+          <Box sx={s.sourceStep}>
+            <Box sx={s.stepTitle}>{t.reelCreator.title}</Box>
+            <Box sx={s.sourceOptions}>
+              <Box component="button" type="button" sx={s.sourceBtn} onClick={startCamera}>
+                <Box component="span" sx={s.sourceBtnIcon}>📷</Box>
+                <Box component="span" sx={s.sourceBtnLabel}>{t.reelCreator.recordOption}</Box>
+                <Box component="span" sx={s.sourceBtnDesc}>{t.reelCreator.recordDesc}</Box>
+              </Box>
+              <Box component="label" sx={s.sourceBtn}>
+                <Box component="span" sx={s.sourceBtnIcon}>🖼️</Box>
+                <Box component="span" sx={s.sourceBtnLabel}>{t.reelCreator.uploadOption}</Box>
+                <Box component="span" sx={s.sourceBtnDesc}>{t.reelCreator.uploadDesc}</Box>
                 <input type="file" accept="video/*" style={{ display: 'none' }} onChange={handleFileChange} />
-              </label>
-            </div>
-            <button className={styles.closeBtn} onClick={onClose}>{t.reelCreator.cancel}</button>
-          </div>
+              </Box>
+            </Box>
+            <Box component="button" type="button" sx={s.closeBtn} onClick={onClose}>{t.reelCreator.cancel}</Box>
+          </Box>
         )}
 
         {/* ── CAMERA ── */}
         {step === 'camera' && (
-          <div className={styles.cameraStep}>
-            <div className={styles.cameraHeader}>
-              <button className={styles.backBtn} onClick={() => { stopCamera(); setStep('source') }}>←</button>
-              <div className={styles.stepTitle}>{t.reelCreator.recordStep}</div>
-              <button className={styles.flipBtn} onClick={flipCamera} title={t.reelCreator.flipCamera}>🔄</button>
-            </div>
+          <Box sx={s.cameraStep}>
+            <Box sx={s.stepHeader}>
+              <Box component="button" type="button" sx={s.backBtn} onClick={() => { stopCamera(); setStep('source') }}>←</Box>
+              <Box sx={s.stepTitle}>{t.reelCreator.recordStep}</Box>
+              <Box component="button" type="button" sx={s.flipBtn} onClick={flipCamera} title={t.reelCreator.flipCamera}>🔄</Box>
+            </Box>
             {cameraError ? (
-              <div className={styles.cameraError}>{cameraError}</div>
+              <Box sx={s.cameraError}>{cameraError}</Box>
             ) : (
-              <div className={styles.cameraPreviewWrap}>
-                <video ref={cameraVideoRef} className={styles.cameraPreview} autoPlay playsInline muted />
+              <Box sx={s.cameraPreviewWrap}>
+                <Box component="video" ref={cameraVideoRef} sx={s.cameraPreview} autoPlay playsInline muted />
                 {isRecording && (
-                  <div className={styles.recordingTimer}>
+                  <Box sx={s.recordingTimer}>
                     🔴 {formatTime(recordingTime)} / {formatTime(MAX_RECORD_SEC)}
-                  </div>
+                  </Box>
                 )}
-              </div>
+              </Box>
             )}
             {!cameraError && (
-              <div className={styles.cameraControls}>
-                <button
-                  className={`${styles.recordBtn} ${isRecording ? styles.recordBtnActive : ''}`}
+              <Box sx={s.cameraControls}>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.recordBtn(isRecording)}
                   onClick={isRecording ? stopRecording : startRecording}
                 >
                   {isRecording ? '⏹' : '⏺'}
-                </button>
-                <div className={styles.recordLabel}>{isRecording ? t.reelCreator.stopRecord : t.reelCreator.startRecord}</div>
-              </div>
+                </Box>
+                <Box sx={s.recordLabel}>{isRecording ? t.reelCreator.stopRecord : t.reelCreator.startRecord}</Box>
+              </Box>
             )}
-          </div>
+          </Box>
         )}
 
         {/* ── EDIT ── */}
         {step === 'edit' && (
-          <div className={styles.editStep}>
+          <Box sx={s.editStep}>
             {isTrimming && (
-              <div className={styles.trimProgressOverlay}>
-                <div className={styles.trimProgressBox}>
-                  <div className={styles.trimProgressTitle}>{t.reelCreator.exportOverlayTitle}</div>
-                  <div className={styles.trimProgressTrack}>
-                    <div className={styles.trimProgressFill} style={{ width: `${trimProgress}%` }} />
-                  </div>
-                  <div className={styles.trimProgressPct}>{trimProgress}%</div>
-                  <div className={styles.trimProgressHint}>{t.reelCreator.exportOverlayHint}</div>
-                </div>
-              </div>
+              <Box sx={s.trimProgressOverlay}>
+                <Box sx={s.trimProgressBox}>
+                  <Box sx={s.trimProgressTitle}>{t.reelCreator.exportOverlayTitle}</Box>
+                  <Box sx={s.trimProgressTrack}>
+                    <Box sx={s.trimProgressFill} style={{ width: `${trimProgress}%` }} />
+                  </Box>
+                  <Box sx={s.trimProgressPct}>{trimProgress}%</Box>
+                  <Box sx={s.trimProgressHint}>{t.reelCreator.exportOverlayHint}</Box>
+                </Box>
+              </Box>
             )}
 
             {/* Cột trái: video preview */}
-            <div className={styles.editLeft}>
-              <div className={styles.editPreviewWrap}>
-                <video
+            <Box sx={s.editLeft}>
+              <Box sx={s.editPreviewWrap}>
+                <Box
+                  component="video"
                   ref={editPreviewRef}
                   src={videoObjectUrl}
                   style={{ filter: activeFilterCss }}
-                  className={styles.editPreview}
+                  sx={s.editPreview}
                   loop={!trimEnd || trimEnd >= videoDuration}
                   autoPlay muted playsInline
                   onTimeUpdate={handleEditTimeUpdate}
                 />
                 {activeAudioName && (
-                  <div className={styles.audioOverlay}>🎵 {activeAudioName}</div>
+                  <Box sx={s.audioOverlay}>🎵 {activeAudioName}</Box>
                 )}
-              </div>
-            </div>
+              </Box>
+            </Box>
 
             {/* Cột phải: header + tabs + panels */}
-            <div className={styles.editRight}>
-            <div className={styles.editHeader}>
-              <button className={styles.backBtn} onClick={() => setStep('source')}>←</button>
-              <div className={styles.stepTitle}>{t.reelCreator.editStep}</div>
-              <button className={styles.nextBtn} onClick={() => setStep('details')}>{t.reelCreator.next}</button>
-            </div>
+            <Box sx={s.editRight}>
+              <Box sx={s.stepHeader}>
+                <Box component="button" type="button" sx={s.backBtn} onClick={() => setStep('source')}>←</Box>
+                <Box sx={s.stepTitle}>{t.reelCreator.editStep}</Box>
+                <Box component="button" type="button" sx={s.nextBtn} onClick={() => setStep('details')}>{t.reelCreator.next}</Box>
+              </Box>
 
-            <div className={styles.editTabs}>
-              {[
-                { id: 'trim',   label: t.reelCreator.trimTab },
-                { id: 'filter', label: t.reelCreator.filterTab },
-                { id: 'music',  label: t.reelCreator.musicTab },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  className={`${styles.editTab} ${editTab === tab.id ? styles.editTabActive : ''}`}
-                  onClick={() => setEditTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Trim */}
-            {editTab === 'trim' && (
-              <div className={styles.trimPanel}>
-                {isOversized && (
-                  <div className={styles.oversizedWarning}>
-                    ⚠️ {t.reelCreator.oversizedWarning}
-                  </div>
-                )}
-                <div className={styles.trimInfo}>
-                  <span>{formatTime(trimStart)}</span>
-                  <span className={styles.trimDuration}>{formatTime(trimDuration)} / {formatTime(videoDuration)}</span>
-                  <span>{formatTime(trimEnd)}</span>
-                </div>
-                <div ref={trimRef} className={styles.trimTrack}>
-                  <div className={styles.trimFill} style={{ left: `${startPct}%`, width: `${endPct - startPct}%` }} />
-                  <div
-                    className={`${styles.trimHandle} ${styles.trimHandleStart}`}
-                    style={{ left: `${startPct}%` }}
-                    onPointerDown={e => handleTrimPointerDown(e, 'start')}
-                    onPointerMove={handleTrimPointerMove}
-                    onPointerUp={handleTrimPointerUp}
-                  />
-                  <div
-                    className={`${styles.trimHandle} ${styles.trimHandleEnd}`}
-                    style={{ left: `${endPct}%` }}
-                    onPointerDown={e => handleTrimPointerDown(e, 'end')}
-                    onPointerMove={handleTrimPointerMove}
-                    onPointerUp={handleTrimPointerUp}
-                  />
-                </div>
-                <div className={styles.trimHint}>{t.reelCreator.trimHint}</div>
-                {isOversized && (
-                  <button
-                    className={styles.exportBtn}
-                    onClick={handleTrimExport}
-                    disabled={isTrimming}
+              <Box sx={s.editTabs}>
+                {[
+                  { id: 'trim',   label: t.reelCreator.trimTab },
+                  { id: 'filter', label: t.reelCreator.filterTab },
+                  { id: 'music',  label: t.reelCreator.musicTab },
+                ].map(tab => (
+                  <Box
+                    component="button"
+                    type="button"
+                    key={tab.id}
+                    sx={s.editTab(editTab === tab.id)}
+                    onClick={() => setEditTab(tab.id)}
                   >
-                    {isTrimming ? `⏳ ${trimProgress}%` : t.reelCreator.exportBtn}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Filter */}
-            {editTab === 'filter' && (
-              <div className={styles.filterPanel}>
-                {VIDEO_FILTERS.map(f => (
-                  <button
-                    key={f.id}
-                    className={`${styles.filterItem} ${activeFilter === f.id ? styles.filterActive : ''}`}
-                    onClick={() => { setActiveFilter(f.id); setActiveFilterCss(f.css) }}
-                  >
-                    <div className={styles.filterThumbWrap}>
-                      <video src={videoObjectUrl} className={styles.filterThumb} style={{ filter: f.css }} muted playsInline preload="metadata" />
-                    </div>
-                    <span className={styles.filterName}>{f.name}</span>
-                  </button>
+                    {tab.label}
+                  </Box>
                 ))}
-              </div>
-            )}
+              </Box>
 
-            {/* Music */}
-            {editTab === 'music' && (
-              <div className={styles.musicPanel}>
+              {/* Trim */}
+              {editTab === 'trim' && (
+                <Box sx={s.trimPanel}>
+                  {isOversized && (
+                    <Box sx={s.oversizedWarning}>
+                      ⚠️ {t.reelCreator.oversizedWarning}
+                    </Box>
+                  )}
+                  <Box sx={s.trimInfo}>
+                    <span>{formatTime(trimStart)}</span>
+                    <Box component="span" sx={s.trimDuration}>{formatTime(trimDuration)} / {formatTime(videoDuration)}</Box>
+                    <span>{formatTime(trimEnd)}</span>
+                  </Box>
+                  <Box ref={trimRef} sx={s.trimTrack}>
+                    <Box sx={s.trimFill} style={{ left: `${startPct}%`, width: `${endPct - startPct}%` }} />
+                    <Box
+                      sx={s.trimHandle}
+                      style={{ left: `${startPct}%` }}
+                      onPointerDown={e => handleTrimPointerDown(e, 'start')}
+                      onPointerMove={handleTrimPointerMove}
+                      onPointerUp={handleTrimPointerUp}
+                    />
+                    <Box
+                      sx={s.trimHandle}
+                      style={{ left: `${endPct}%` }}
+                      onPointerDown={e => handleTrimPointerDown(e, 'end')}
+                      onPointerMove={handleTrimPointerMove}
+                      onPointerUp={handleTrimPointerUp}
+                    />
+                  </Box>
+                  <Box sx={s.trimHint}>{t.reelCreator.trimHint}</Box>
+                  {isOversized && (
+                    <Box
+                      component="button"
+                      type="button"
+                      sx={s.exportBtn}
+                      onClick={handleTrimExport}
+                      disabled={isTrimming}
+                    >
+                      {isTrimming ? `⏳ ${trimProgress}%` : t.reelCreator.exportBtn}
+                    </Box>
+                  )}
+                </Box>
+              )}
 
-                {/* Section: nhạc hot */}
-                <div className={styles.musicSectionTitle}>{t.reelCreator.musicHot}</div>
-                <div className={styles.trackList}>
-                  {PRESET_TRACKS.filter(t => !brokenTrackIds.has(t.id)).map(track => {
-                    const isSelected  = selectedPreset?.id === track.id
-                    const isPreviewing = previewingId === track.id
-                    return (
-                      <div
-                        key={track.id}
-                        className={`${styles.trackItem} ${isSelected ? styles.trackSelected : ''}`}
-                        onClick={() => selectPreset(track)}
-                      >
-                        {/* Album art */}
-                        <div className={styles.trackArt} style={{ background: track.color }}>
-                          <span className={styles.trackNote}>{isPreviewing ? '🎵' : '♪'}</span>
+              {/* Filter */}
+              {editTab === 'filter' && (
+                <Box sx={s.filterPanel}>
+                  {VIDEO_FILTERS.map(f => (
+                    <Box
+                      component="button"
+                      type="button"
+                      key={f.id}
+                      sx={s.filterItem(activeFilter === f.id)}
+                      onClick={() => { setActiveFilter(f.id); setActiveFilterCss(f.css) }}
+                    >
+                      <Box className="filterThumbWrap" sx={s.filterThumbWrap}>
+                        <Box component="video" src={videoObjectUrl} sx={s.filterThumb} style={{ filter: f.css }} muted playsInline preload="metadata" />
+                      </Box>
+                      <Box component="span" className="filterName" sx={s.filterName}>{f.name}</Box>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {/* Music */}
+              {editTab === 'music' && (
+                <Box sx={s.musicPanel}>
+
+                  {/* Section: nhạc hot */}
+                  <Box sx={s.musicSectionTitle}>{t.reelCreator.musicHot}</Box>
+                  <Box sx={s.trackList}>
+                    {PRESET_TRACKS.filter(t => !brokenTrackIds.has(t.id)).map(track => {
+                      const isSelected  = selectedPreset?.id === track.id
+                      const isPreviewing = previewingId === track.id
+                      return (
+                        <Box
+                          key={track.id}
+                          sx={s.trackItem(isSelected)}
+                          onClick={() => selectPreset(track)}
+                        >
+                          {/* Album art */}
+                          <Box sx={s.trackArt} style={{ background: track.color }}>
+                            <Box component="span" sx={s.trackNote}>{isPreviewing ? '🎵' : '♪'}</Box>
+                          </Box>
+
+                          {/* Info */}
+                          <Box sx={s.trackInfo}>
+                            <Box sx={s.trackName}>{track.name}</Box>
+                            <Box sx={s.trackMeta}>
+                              <Box component="span" sx={s.trackArtist}>{track.artist}</Box>
+                              <Box component="span" sx={s.trackGenreBadge}>{track.genre}</Box>
+                            </Box>
+                          </Box>
+
+                          {/* Duration + preview */}
+                          <Box sx={s.trackRight}>
+                            <Box component="span" sx={s.trackDuration}>{formatTime(track.duration)}</Box>
+                            <Box
+                              component="button"
+                              type="button"
+                              sx={s.trackPlayBtn(isPreviewing)}
+                              onClick={e => { e.stopPropagation(); toggleTrackPreview(track) }}
+                              title={isPreviewing ? 'Dừng' : 'Nghe thử'}
+                            >
+                              {isPreviewing ? '⏸' : '▶'}
+                            </Box>
+                          </Box>
+
+                          {/* Check mark khi chọn */}
+                          {isSelected && <Box sx={s.trackCheck}>✓</Box>}
+                        </Box>
+                      )
+                    })}
+                  </Box>
+
+                  {/* Divider */}
+                  <Box sx={s.musicDivider}>
+                    <span>{t.reelCreator.musicOr}</span>
+                  </Box>
+
+                  {/* Upload nhạc riêng */}
+                  {audioFile ? (
+                    <Box sx={s.audioSelected}>
+                      <Box sx={s.audioInfo}>
+                        <Box component="span" sx={s.audioIcon}>🎵</Box>
+                        <div>
+                          <Box sx={s.audioName}>{audioFile.name}</Box>
+                          <Box sx={s.audioSize}>{(audioFile.size / 1024 / 1024).toFixed(1)} MB</Box>
                         </div>
-
-                        {/* Info */}
-                        <div className={styles.trackInfo}>
-                          <div className={styles.trackName}>{track.name}</div>
-                          <div className={styles.trackMeta}>
-                            <span className={styles.trackArtist}>{track.artist}</span>
-                            <span className={styles.trackGenreBadge}>{track.genre}</span>
-                          </div>
-                        </div>
-
-                        {/* Duration + preview */}
-                        <div className={styles.trackRight}>
-                          <span className={styles.trackDuration}>{formatTime(track.duration)}</span>
-                          <button
-                            className={`${styles.trackPlayBtn} ${isPreviewing ? styles.trackPlayBtnActive : ''}`}
-                            onClick={e => { e.stopPropagation(); toggleTrackPreview(track) }}
-                            title={isPreviewing ? 'Dừng' : 'Nghe thử'}
-                          >
-                            {isPreviewing ? '⏸' : '▶'}
-                          </button>
-                        </div>
-
-                        {/* Check mark khi chọn */}
-                        {isSelected && <div className={styles.trackCheck}>✓</div>}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Divider */}
-                <div className={styles.musicDivider}>
-                  <span>{t.reelCreator.musicOr}</span>
-                </div>
-
-                {/* Upload nhạc riêng */}
-                {audioFile ? (
-                  <div className={styles.audioSelected}>
-                    <div className={styles.audioInfo}>
-                      <span className={styles.audioIcon}>🎵</span>
-                      <div>
-                        <div className={styles.audioName}>{audioFile.name}</div>
-                        <div className={styles.audioSize}>{(audioFile.size / 1024 / 1024).toFixed(1)} MB</div>
-                      </div>
-                    </div>
-                    <div className={styles.audioActions}>
-                      <button className={styles.audioPlayBtn} onClick={toggleUploadPreview}>
-                        {uploadPlaying ? '⏸' : '▶️'}
-                      </button>
-                      <button className={styles.audioRemoveBtn} onClick={removeAudio}>✕</button>
-                    </div>
-                  </div>
-                ) : (
-                  <label className={styles.audioUploadBtn}>
-                    {t.reelCreator.musicUpload}
-                    <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleAudioChange} />
-                  </label>
-                )}
-              </div>
-            )}
-            </div> {/* end editRight */}
-          </div>
+                      </Box>
+                      <Box sx={s.audioActions}>
+                        <Box component="button" type="button" sx={s.audioPlayBtn} onClick={toggleUploadPreview}>
+                          {uploadPlaying ? '⏸' : '▶️'}
+                        </Box>
+                        <Box component="button" type="button" sx={s.audioRemoveBtn} onClick={removeAudio}>✕</Box>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Box component="label" sx={s.audioUploadBtn}>
+                      {t.reelCreator.musicUpload}
+                      <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleAudioChange} />
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Box>
+          </Box>
         )}
 
         {/* ── DETAILS ── */}
         {step === 'details' && (
-          <div className={styles.detailsStep}>
-            <div className={styles.detailsHeader}>
-              <button className={styles.backBtn} onClick={() => setStep('edit')}>←</button>
-              <div className={styles.stepTitle}>{t.reelCreator.detailsStep}</div>
-            </div>
+          <Box sx={s.detailsStep}>
+            <Box sx={s.stepHeader}>
+              <Box component="button" type="button" sx={s.backBtn} onClick={() => setStep('edit')}>←</Box>
+              <Box sx={s.stepTitle}>{t.reelCreator.detailsStep}</Box>
+            </Box>
 
-            <div className={styles.detailsPreview}>
-              <video ref={detailsVideoRef} src={videoObjectUrl} style={{ filter: activeFilterCss }} className={styles.detailsMiniVideo} loop autoPlay muted playsInline />
-              <div className={styles.detailsPreviewMeta}>
-                {activeFilter !== 'none' && <span className={styles.metaTag}>🎨 {VIDEO_FILTERS.find(f => f.id === activeFilter)?.name}</span>}
-                {activeAudioName && <span className={styles.metaTag}>🎵 {activeAudioName}</span>}
-                <span className={styles.metaTag}>✂️ {formatTime(trimDuration)}</span>
-              </div>
-            </div>
+            <Box sx={s.detailsPreview}>
+              <Box component="video" ref={detailsVideoRef} src={videoObjectUrl} style={{ filter: activeFilterCss }} sx={s.detailsMiniVideo} loop autoPlay muted playsInline />
+              <Box sx={s.detailsPreviewMeta}>
+                {activeFilter !== 'none' && <Box component="span" sx={s.metaTag}>🎨 {VIDEO_FILTERS.find(f => f.id === activeFilter)?.name}</Box>}
+                {activeAudioName && <Box component="span" sx={s.metaTag}>🎵 {activeAudioName}</Box>}
+                <Box component="span" sx={s.metaTag}>✂️ {formatTime(trimDuration)}</Box>
+              </Box>
+            </Box>
 
-            <div className={styles.detailsField}>
-              <label className={styles.detailsLabel}>{t.reelCreator.captionLabel}</label>
-              <button
+            <Box sx={s.detailsField}>
+              <Box component="label" sx={s.detailsLabel}>{t.reelCreator.captionLabel}</Box>
+              <Box
+                component="button"
                 type="button"
                 onClick={handleSuggestCaption}
                 disabled={aiCaptionLoading}
-                style={{
-                  alignSelf: 'flex-start',
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  margin: '0 0 8px', padding: '7px 12px',
-                  background: 'none', border: '1px solid var(--border)',
-                  borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  color: '#0095f6',
-                  cursor: aiCaptionLoading ? 'not-allowed' : 'pointer',
-                  opacity: aiCaptionLoading ? 0.6 : 1,
-                }}
+                sx={s.aiCaptionBtn}
               >
                 {aiCaptionLoading ? t.ai.suggesting : t.ai.suggestCaption}
-              </button>
-              <textarea
-                className={styles.captionInput}
+              </Box>
+              <Box
+                component="textarea"
+                sx={s.captionInput}
                 placeholder={t.reelCreator.captionPlaceholder}
                 value={caption}
                 onChange={e => setCaption(e.target.value)}
                 maxLength={2200}
                 rows={3}
               />
-              <div className={styles.captionCount}>{caption.length} / 2200</div>
-            </div>
+              <Box sx={s.captionCount}>{caption.length} / 2200</Box>
+            </Box>
 
-            <button className={styles.postBtn} onClick={handlePost} disabled={isPosting}>
+            <Box component="button" type="button" sx={s.postBtn} onClick={handlePost} disabled={isPosting}>
               {isPosting ? t.reelCreator.posting : t.reelCreator.postBtn}
-            </button>
-          </div>
+            </Box>
+          </Box>
         )}
 
-      {/* Audio elements luôn tồn tại — không đặt trong conditional tab để tránh unmount */}
-      <audio ref={presetAudioRef} onEnded={() => setPreviewingId(null)} style={{ display: 'none' }} />
-      <audio ref={uploadAudioRef} onEnded={() => setUploadPlaying(false)} style={{ display: 'none' }} />
+        {/* Audio elements luôn tồn tại — không đặt trong conditional tab để tránh unmount */}
+        <audio ref={presetAudioRef} onEnded={() => setPreviewingId(null)} style={{ display: 'none' }} />
+        <audio ref={uploadAudioRef} onEnded={() => setUploadPlaying(false)} style={{ display: 'none' }} />
 
-      </div>
-    </div>
+      </Box>
+    </Box>
   )
 }

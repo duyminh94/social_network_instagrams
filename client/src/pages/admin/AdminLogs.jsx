@@ -7,17 +7,28 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Form, Table, Badge, Pagination } from 'react-bootstrap'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import Chip from '@mui/material/Chip'
+import Pagination from '@mui/material/Pagination'
 import api from '../../services/api'
 import Spinner from '../../components/common/Spinner'
 import { timeAgo } from '../../utils/formatTime'
 import { useAuth } from '../../hooks/useAuth'
 import { useLanguage } from '../../i18n/LanguageContext'
-import styles from './AdminShared.module.css'
+import * as s from './adminStyles'
 
-function getActionBadge(action) {
+// Màu Chip theo mức độ ảnh hưởng của hành động
+function getActionColor(action) {
   if (action === 'ban_user' || action === 'delete_post' || action === 'delete_comment' || action === 'delete_story') {
-    return 'danger'
+    return 'error'
   }
 
   if (action === 'handle_report') {
@@ -28,7 +39,7 @@ function getActionBadge(action) {
     return 'success'
   }
 
-  return 'secondary'
+  return 'default'
 }
 
 export default function AdminLogs() {
@@ -38,11 +49,6 @@ export default function AdminLogs() {
   var [page, setPage] = useState(1)
   var [actionFilter, setActionFilter] = useState('')
   var [searchText, setSearchText] = useState('')
-  var optionStyle = {
-    backgroundColor: '#ffffff',
-    color: '#111827',
-  }
-
   var actionLabels = {
     ban_user: t.admin.logs.banUser,
     unban_user: t.admin.logs.unbanUser,
@@ -112,100 +118,117 @@ export default function AdminLogs() {
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.pageHeader}><div><h2>{t.admin.dashboard.quickLinks}</h2><p>{t.admin.logs.searchPlaceholder}</p></div></div>
-      <div className={styles.filters}>
-        <Form.Control
-          type="text"
+    <Box sx={s.page}>
+      <Box sx={s.pageHeader}>
+        <Box>
+          <Typography component="h2" sx={s.pageTitle}>{t.admin.dashboard.quickLinks}</Typography>
+          <Typography sx={s.pageSubtitle}>{t.admin.logs.searchPlaceholder}</Typography>
+        </Box>
+      </Box>
+
+      <Box sx={s.filterRow}>
+        {/* Ô này lọc ngay trên dữ liệu đã tải về, không gọi lại API */}
+        <TextField
+          size="small"
           placeholder={t.admin.logs.searchPlaceholder}
           value={searchText}
           onChange={function (e) { setSearchText(e.target.value) }}
-          className={styles.filterInput}
+          sx={{ flex: 1, minWidth: 220 }}
         />
-        <Form.Select
+        <TextField
+          select
+          size="small"
           value={actionFilter}
           onChange={function (e) { setActionFilter(e.target.value); setPage(1) }}
-          className={styles.filterSelect}
+          // displayEmpty: không có prop này thì mục "Tất cả hành động" (value '')
+          //   hiện ra ô trống thay vì tên của nó
+          slotProps={{ select: { displayEmpty: true } }}
+          sx={{ minWidth: 200 }}
         >
           {actionOptions.map(function (item) {
-            return <option key={item.value} value={item.value} style={optionStyle}>{item.label}</option>
+            return <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>
           })}
-        </Form.Select>
-      </div>
+        </TextField>
+      </Box>
 
       {isLoading ? (
         <Spinner fullPage />
       ) : (
         <>
-          <div className={styles.tableWrap}>
-            <Table hover className={styles.table}>
-              <thead>
-                <tr>
-                  <th>{t.admin.logs.colAdmin}</th>
-                  <th>{t.admin.logs.colAction}</th>
-                  <th>{t.admin.logs.colTarget}</th>
-                  <th>{t.admin.logs.colTargetId}</th>
-                  <th>{t.admin.logs.colNote}</th>
-                  <th>{t.admin.logs.colTime}</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Box sx={s.tableWrap}>
+            <Table sx={s.table}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t.admin.logs.colAdmin}</TableCell>
+                  <TableCell>{t.admin.logs.colAction}</TableCell>
+                  <TableCell>{t.admin.logs.colTarget}</TableCell>
+                  <TableCell>{t.admin.logs.colTargetId}</TableCell>
+                  <TableCell>{t.admin.logs.colNote}</TableCell>
+                  <TableCell>{t.admin.logs.colTime}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {filteredLogs.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className={styles.emptyCell}>
+                  <TableRow>
+                    <TableCell colSpan={6} sx={{ textAlign: 'center', color: s.adminColors.muted }}>
                       {t.admin.logs.noLogs}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
 
                 {filteredLogs.map(function (log) {
                   return (
-                    <tr key={log._id}>
-                      <td>
-                        <div style={{ fontWeight: 700 }}>
+                    <TableRow key={log._id}>
+                      <TableCell>
+                        <Box sx={{ fontWeight: 700 }}>
                           {log.adminId?.username || t.admin.logs.unknown}
-                        </div>
-                        <div style={{ fontSize: 13, color: '#64748b' }}>
+                        </Box>
+                        <Box sx={{ fontSize: 13, color: s.adminColors.muted }}>
                           {log.adminId?.email || ''}
-                        </div>
-                      </td>
-                      <td>
-                        <Badge bg={getActionBadge(log.action)}>
-                          {actionLabels[log.action] || log.action}
-                        </Badge>
-                      </td>
-                      <td>{log.targetType || '-'}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: 13 }}>
+                        </Box>
+                      </TableCell>
+
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          color={getActionColor(log.action)}
+                          label={actionLabels[log.action] || log.action}
+                        />
+                      </TableCell>
+
+                      <TableCell>{log.targetType || '-'}</TableCell>
+
+                      {/* Id dùng font đẳng chiều cho dễ đối chiếu khi tra cứu */}
+                      <TableCell sx={{ fontFamily: 'monospace', fontSize: 13 }}>
                         {log.targetId || '-'}
-                      </td>
-                      <td style={{ maxWidth: 260, wordBreak: 'break-word' }}>
+                      </TableCell>
+
+                      <TableCell sx={{ maxWidth: 260, wordBreak: 'break-word' }}>
                         {log.note || '-'}
-                      </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
+                      </TableCell>
+
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
                         {timeAgo(log.createdAt)}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
+              </TableBody>
             </Table>
-          </div>
+          </Box>
 
           {totalPages > 1 && (
-            <Pagination className={styles.pagination}>
-              <Pagination.Prev disabled={page <= 1} onClick={function () { setPage(function (p) { return p - 1 }) }} />
-              {Array.from({ length: Math.min(totalPages, 10) }, function (_, i) { return i + 1 }).map(function (p) {
-                return (
-                  <Pagination.Item key={p} active={p === page} onClick={function () { setPage(p) }}>
-                    {p}
-                  </Pagination.Item>
-                )
-              })}
-              <Pagination.Next disabled={page >= totalPages} onClick={function () { setPage(function (p) { return p + 1 }) }} />
-            </Pagination>
+            <Box sx={s.paginationRow}>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={function (_, value) { setPage(value) }}
+                color="primary"
+              />
+            </Box>
           )}
         </>
       )}
-    </div>
+    </Box>
   )
 }

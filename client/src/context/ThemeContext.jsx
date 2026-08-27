@@ -8,9 +8,19 @@
 //
 // Theme mặc định: tối ('dark')
 // Lưu lựa chọn vào localStorage để nhớ qua các lần load
-// Gắn thuộc tính data-theme lên thẻ <html> để CSS đổi bộ biến màu
+//
+// Provider này điều khiển CẢ HAI hệ màu cùng lúc:
+//   1. Gắn data-theme lên <html> → 32 file CSS Module đổi bộ biến --ig-*
+//   2. MuiThemeProvider          → component MUI đổi palette theo cùng mode
+//   Nhờ vậy chỉ cần bấm 1 nút là toàn trang đổi màu đồng bộ
+//
+// Chưa dùng <CssBaseline /> ở giai đoạn này: nó reset lại CSS toàn cục và sẽ
+//   phá layout của các file CSS Module đang chạy. Chỉ bật khi đã chuyển xong
+//   toàn bộ sang MUI và gỡ Bootstrap
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useMemo } from 'react'
+import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles'
+import createAppTheme from '../theme/muiTheme'
 
 var ThemeContext = createContext(null)
 
@@ -23,6 +33,13 @@ export function ThemeProvider({ children }) {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
+  // Chỉ dựng lại theme MUI khi mode thật sự đổi.
+  // Thiếu useMemo thì mỗi lần re-render sẽ tạo object theme mới
+  // → toàn bộ component MUI bên dưới tính lại style, gây giật
+  var muiTheme = useMemo(function () {
+    return createAppTheme(theme)
+  }, [theme])
+
   function toggleTheme() {
     var newTheme = theme === 'dark' ? 'light' : 'dark'
     setTheme(newTheme)
@@ -31,7 +48,9 @@ export function ThemeProvider({ children }) {
 
   return (
     <ThemeContext.Provider value={{ theme: theme, toggleTheme: toggleTheme }}>
-      {children}
+      <MuiThemeProvider theme={muiTheme}>
+        {children}
+      </MuiThemeProvider>
     </ThemeContext.Provider>
   )
 }

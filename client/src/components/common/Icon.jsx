@@ -148,7 +148,7 @@ export function Wordmark({ size = 24, color = 'currentColor', accent = '#ff6b58'
       lineHeight: 1,
       whiteSpace: 'nowrap',
     }}>
-      aptech<span style={{ color: accent }}>.</span>
+      FPT Aptech<span style={{ color: accent }}>.</span>
     </span>
   )
 }

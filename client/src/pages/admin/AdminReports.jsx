@@ -1,7 +1,24 @@
+// pages/admin/AdminReports.jsx
+// Danh sách báo cáo vi phạm — lọc theo trạng thái, phân trang
+//
+// Bảng dùng Table của MUI thay cho thẻ <table> viết tay: đã có sẵn
+//   kẻ dòng, canh ô và cuộn ngang, chỉ cần chỉnh màu cho khớp giao diện admin
+
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Badge, Pagination } from 'react-bootstrap'
 import { useQuery } from '@tanstack/react-query'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import Chip from '@mui/material/Chip'
+import Pagination from '@mui/material/Pagination'
+import IconButton from '@mui/material/IconButton'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import api from '../../services/api'
 import Avatar from '../../components/common/Avatar'
 import Icon from '../../components/common/Icon'
@@ -9,14 +26,18 @@ import Spinner from '../../components/common/Spinner'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTime } from '../../utils/formatTime'
 import { goAdmin } from '../../utils/adminNavigation'
-import styles from './AdminReports.module.css'
+import * as s from './adminStyles'
 
+// Ô hiển thị một người: avatar + họ tên + username, bấm vào mở trang chi tiết
 function PersonButton({ person, fallback, onClick }) {
   return (
-    <button type="button" className={styles.personButton} disabled={!person?._id} onClick={onClick}>
+    <Box component="button" type="button" sx={s.personButton} disabled={!person?._id} onClick={onClick}>
       <Avatar src={person?.avatarUrl} username={person?.username} size="sm" />
-      <span><strong>{person?.fullName || person?.username || fallback}</strong><small>@{person?.username || fallback}</small></span>
-    </button>
+      <Box component="span">
+        <strong>{person?.fullName || person?.username || fallback}</strong>
+        <small>@{person?.username || fallback}</small>
+      </Box>
+    </Box>
   )
 }
 
@@ -44,23 +65,112 @@ export default function AdminReports() {
     if (userId) goAdmin(navigate, '/admin/users/' + userId)
   }
 
-  return (
-    <div className={styles.page}>
-      <div className={styles.pageHeader}><div><h2>{t.admin.reports.title}</h2><p>{t.admin.reports.listDescription}</p></div></div>
-      <div className={styles.filters} role="group" aria-label={t.admin.reports.statusFilter}>
-        {filters.map(function (filter) { return <button key={filter.key} type="button" className={statusFilter === filter.key ? styles.filterActive : ''} onClick={function () { setStatusFilter(filter.key); setPage(1) }}>{filter.label}</button> })}
-      </div>
+  // Đổi bộ lọc thì phải quay về trang 1, nếu không sẽ hiện trang trống
+  function handleFilterChange(_, value) {
+    if (!value) return
+    setStatusFilter(value)
+    setPage(1)
+  }
 
-      {reportsQuery.isLoading ? <Spinner fullPage /> : reportsQuery.isError ? <div className={styles.empty}>{t.admin.reports.loadFailed}</div> : reports.length === 0 ? <div className={styles.empty}>{t.admin.reports.noReports}</div> : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead><tr><th>{t.admin.reports.colReporter}</th><th>{t.admin.reports.colReported}</th><th>{t.admin.reports.colStatus}</th><th>{t.admin.reports.colDate}</th><th>{t.admin.reports.colActions}</th></tr></thead>
-            <tbody>{reports.map(function (report) { return <tr key={report._id}><td><PersonButton person={report.reporterId} fallback={t.admin.reports.unknown} onClick={function () { openUser(report.reporterId?._id) }} /></td><td><PersonButton person={report.reportedUser} fallback={t.admin.reports.unknown} onClick={function () { openUser(report.reportedUser?._id) }} /></td><td><Badge bg={report.status === 'pending' ? 'warning' : 'success'}>{report.status === 'pending' ? t.admin.reports.pending : t.admin.reports.processed}</Badge></td><td className={styles.date}>{formatDateTime(report.createdAt)}</td><td><button type="button" className={styles.detailButton} title={t.admin.reports.viewDetail} aria-label={t.admin.reports.viewDetail} onClick={function () { goAdmin(navigate, '/admin/reports/' + report._id) }}><Icon name="eye" size={18} /></button></td></tr> })}</tbody>
-          </table>
-        </div>
+  return (
+    <Box sx={s.page}>
+      <Box sx={s.pageHeader}>
+        <Box>
+          <Typography component="h2" sx={s.pageTitle}>{t.admin.reports.title}</Typography>
+          <Typography sx={s.pageSubtitle}>{t.admin.reports.listDescription}</Typography>
+        </Box>
+      </Box>
+
+      <ToggleButtonGroup
+        exclusive
+        value={statusFilter}
+        onChange={handleFilterChange}
+        sx={s.filterBar}
+        aria-label={t.admin.reports.statusFilter}
+      >
+        {filters.map(function (filter) {
+          return (
+            <ToggleButton key={filter.key} value={filter.key} sx={{ px: 2.125, fontWeight: 800 }}>
+              {filter.label}
+            </ToggleButton>
+          )
+        })}
+      </ToggleButtonGroup>
+
+      {reportsQuery.isLoading ? (
+        <Spinner fullPage />
+      ) : reportsQuery.isError ? (
+        <Box sx={s.empty}>{t.admin.reports.loadFailed}</Box>
+      ) : reports.length === 0 ? (
+        <Box sx={s.empty}>{t.admin.reports.noReports}</Box>
+      ) : (
+        <Box sx={s.tableWrap}>
+          <Table sx={s.table}>
+            <TableHead>
+              <TableRow>
+                <TableCell>{t.admin.reports.colReporter}</TableCell>
+                <TableCell>{t.admin.reports.colReported}</TableCell>
+                <TableCell>{t.admin.reports.colStatus}</TableCell>
+                <TableCell>{t.admin.reports.colDate}</TableCell>
+                <TableCell>{t.admin.reports.colActions}</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {reports.map(function (report) {
+                return (
+                  <TableRow key={report._id}>
+                    <TableCell>
+                      <PersonButton
+                        person={report.reporterId}
+                        fallback={t.admin.reports.unknown}
+                        onClick={function () { openUser(report.reporterId?._id) }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <PersonButton
+                        person={report.reportedUser}
+                        fallback={t.admin.reports.unknown}
+                        onClick={function () { openUser(report.reportedUser?._id) }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        color={report.status === 'pending' ? 'warning' : 'success'}
+                        label={report.status === 'pending' ? t.admin.reports.pending : t.admin.reports.processed}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {formatDateTime(report.createdAt)}
+                    </TableCell>
+                    <TableCell>
+                      <IconButton
+                        size="small"
+                        title={t.admin.reports.viewDetail}
+                        aria-label={t.admin.reports.viewDetail}
+                        onClick={function () { goAdmin(navigate, '/admin/reports/' + report._id) }}
+                      >
+                        <Icon name="eye" size={18} />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </Box>
       )}
 
-      {totalPages > 1 && <Pagination className={styles.pagination}><Pagination.Prev disabled={page <= 1} onClick={function () { setPage(function (value) { return value - 1 }) }} /><Pagination.Item active>{page} / {totalPages}</Pagination.Item><Pagination.Next disabled={page >= totalPages} onClick={function () { setPage(function (value) { return value + 1 }) }} /></Pagination>}
-    </div>
+      {totalPages > 1 && (
+        <Box sx={s.paginationRow}>
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={function (_, value) { setPage(value) }}
+            color="primary"
+          />
+        </Box>
+      )}
+    </Box>
   )
 }
