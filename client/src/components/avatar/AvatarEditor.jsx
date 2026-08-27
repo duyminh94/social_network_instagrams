@@ -1,9 +1,30 @@
+// components/avatar/AvatarEditor.jsx
+// Trình chỉnh ảnh đại diện 3 tab — dựng trên Dialog của MUI
+//   'crop'    — cắt ảnh tròn, kéo thanh trượt để phóng to
+//   'filter'  — chọn bộ lọc màu
+//   'sticker' — dán emoji lên ảnh, kéo thả để đổi vị trí
+//
+// Props giữ nguyên: imageSrc, onApply(blob), onCancel
+// Toàn bộ logic cắt ảnh, xuất canvas và kéo thả sticker giữ nguyên như bản cũ,
+//   chỉ thay phần giao diện. Thanh trượt zoom đổi từ <input type="range">
+//   sang Slider của MUI để đồng bộ màu với theme
+
 import { useState, useRef, useCallback } from 'react'
 import Cropper from 'react-easy-crop'
 import toast from 'react-hot-toast'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
+import Slider from '@mui/material/Slider'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import ZoomInIcon from '@mui/icons-material/ZoomIn'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { getCroppedDataUrl, exportFinalImage } from '../../utils/canvasUtils'
-import styles from './AvatarEditor.module.css'
+import Button from '../common/Button'
 
 const STICKER_SET = [
   '😀','😍','🥰','😎','🤩','🎉','✨','🔥',
@@ -40,6 +61,8 @@ export default function AvatarEditor({ imageSrc, onApply, onCancel }) {
 
   const onCropComplete = useCallback((_, pixels) => setCroppedAreaPixels(pixels), [])
 
+  // Rời tab crop thì phải sinh ảnh đã cắt trước, để tab filter/sticker
+  // xem đúng phần ảnh người dùng vừa chọn chứ không phải ảnh gốc
   async function switchTab(tab) {
     if (tab !== 'crop' && croppedAreaPixels) {
       const url = await getCroppedDataUrl(imageSrc, croppedAreaPixels)
@@ -85,40 +108,40 @@ export default function AvatarEditor({ imageSrc, onApply, onCancel }) {
 
   const displaySrc = previewUrl || imageSrc
 
+  // Ảnh xem trước dạng tròn 200px, dùng chung cho tab filter và sticker
+  const previewImgSx = {
+    width: 200,
+    height: 200,
+    borderRadius: '50%',
+    objectFit: 'cover',
+    display: 'block',
+  }
+
   return (
-    <div className={styles.backdrop}>
-      <div className={styles.modal}>
+    <Dialog open onClose={onCancel} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ textAlign: 'center', fontSize: 16, fontWeight: 600, pb: 1 }}>
+        {ep.editorTitle}
+      </DialogTitle>
 
-        <div className={styles.header}>
-          <div className={styles.title}>{ep.editorTitle}</div>
-        </div>
+      <Tabs
+        value={activeTab}
+        onChange={(_, value) => value === 'crop' ? setActiveTab('crop') : switchTab(value)}
+        variant="fullWidth"
+        sx={{ borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab value="crop" label={'✂️ ' + ep.editorTabCrop} sx={{ fontSize: 13 }} />
+        <Tab value="filter" label={'🎨 ' + ep.editorTabFilter} sx={{ fontSize: 13 }} />
+        <Tab value="sticker" label={'🌟 ' + ep.editorTabSticker} sx={{ fontSize: 13 }} />
+      </Tabs>
 
-        {/* Tabs */}
-        <div className={styles.tabs}>
-          <button
-            className={`${styles.tab} ${activeTab === 'crop' ? styles.tabActive : ''}`}
-            onClick={() => setActiveTab('crop')}
-          >
-            ✂️ {ep.editorTabCrop}
-          </button>
-          <button
-            className={`${styles.tab} ${activeTab === 'filter' ? styles.tabActive : ''}`}
-            onClick={() => switchTab('filter')}
-          >
-            🎨 {ep.editorTabFilter}
-          </button>
-          <button
-            className={`${styles.tab} ${activeTab === 'sticker' ? styles.tabActive : ''}`}
-            onClick={() => switchTab('sticker')}
-          >
-            🌟 {ep.editorTabSticker}
-          </button>
-        </div>
+      <DialogContent sx={{ p: 0 }}>
 
-        {/* ── Crop tab ── */}
+        {/* ── Tab cắt ảnh ── */}
         {activeTab === 'crop' && (
-          <div className={styles.cropSection}>
-            <div className={styles.cropArea}>
+          <Box>
+            {/* Cropper định vị tuyệt đối nên container bắt buộc phải relative
+                và có chiều cao rõ ràng, nếu không sẽ không hiện gì */}
+            <Box sx={{ position: 'relative', height: 280, bgcolor: '#000' }}>
               <Cropper
                 image={imageSrc}
                 crop={crop}
@@ -130,110 +153,227 @@ export default function AvatarEditor({ imageSrc, onApply, onCancel }) {
                 onZoomChange={setZoom}
                 onCropComplete={onCropComplete}
               />
-            </div>
-            <div className={styles.zoomRow}>
-              <span className={styles.zoomIcon}>🔍</span>
-              <input
-                type="range"
-                min={1} max={3} step={0.01}
+            </Box>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 3, py: 2 }}>
+              <ZoomInIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+              <Slider
                 value={zoom}
-                onChange={e => setZoom(Number(e.target.value))}
-                className={styles.zoomSlider}
+                min={1}
+                max={3}
+                step={0.01}
+                onChange={(_, value) => setZoom(value)}
+                size="small"
               />
-            </div>
-          </div>
+            </Box>
+          </Box>
         )}
 
-        {/* ── Filter tab ── */}
+        {/* ── Tab bộ lọc ── */}
         {activeTab === 'filter' && (
-          <div className={styles.filterSection}>
-            <div className={styles.previewCircle}>
-              <img
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2.5, pb: 1.5 }}>
+              <Box
+                component="img"
                 src={displaySrc}
-                style={{ filter: activeFilter }}
-                className={styles.previewImg}
                 alt="preview"
+                sx={{ ...previewImgSx, filter: activeFilter }}
               />
-            </div>
-            <div className={styles.filterStrip}>
-              {FILTERS.map(f => (
-                <button
-                  key={f.name}
-                  className={`${styles.filterItem} ${activeFilter === f.css ? styles.filterActive : ''}`}
-                  onClick={() => setActiveFilter(f.css)}
-                >
-                  <div className={styles.filterThumbWrap}>
-                    <img
-                      src={displaySrc}
-                      style={{ filter: f.css }}
-                      className={styles.filterThumb}
-                      alt={f.name}
-                    />
-                  </div>
-                  <span className={styles.filterName}>{f.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1, px: 2, pb: 2, overflowX: 'auto' }}>
+              {FILTERS.map(f => {
+                var isActive = activeFilter === f.css
+                return (
+                  <Box
+                    key={f.name}
+                    component="button"
+                    type="button"
+                    onClick={() => setActiveFilter(f.css)}
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 0.75,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      p: 0,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        // Viền sáng đánh dấu bộ lọc đang chọn
+                        outline: isActive ? '2px solid' : 'none',
+                        outlineColor: 'primary.main',
+                        outlineOffset: '2px',
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={displaySrc}
+                        alt={f.name}
+                        sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: f.css }}
+                      />
+                    </Box>
+                    <Typography
+                      sx={{
+                        fontSize: 11,
+                        whiteSpace: 'nowrap',
+                        color: isActive ? 'primary.main' : 'text.secondary',
+                        fontWeight: isActive ? 700 : 400,
+                      }}
+                    >
+                      {f.name}
+                    </Typography>
+                  </Box>
+                )
+              })}
+            </Box>
+          </Box>
         )}
 
-        {/* ── Sticker tab ── */}
+        {/* ── Tab sticker ── */}
         {activeTab === 'sticker' && (
-          <div className={styles.stickerSection}>
-            <div ref={previewRef} className={styles.stickerPreview}>
-              <img
+          <Box>
+            <Box
+              ref={previewRef}
+              sx={{
+                position: 'relative',
+                width: 200,
+                height: 200,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                margin: '20px auto 12px',
+                // touch-action none để kéo sticker trên điện thoại không cuộn trang
+                touchAction: 'none',
+              }}
+            >
+              <Box
+                component="img"
                 src={displaySrc}
-                style={{ filter: activeFilter }}
-                className={styles.previewImg}
                 alt="preview"
                 draggable={false}
+                sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', filter: activeFilter }}
               />
+
               {stickers.map(s => (
-                <div
+                <Box
                   key={s.id}
-                  className={styles.stickerPin}
-                  style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%` }}
                   onPointerDown={handleStickerPointerDown}
                   onPointerMove={e => handleStickerPointerMove(e, s.id)}
+                  sx={{
+                    position: 'absolute',
+                    left: (s.x * 100) + '%',
+                    top: (s.y * 100) + '%',
+                    transform: 'translate(-50%, -50%)',
+                    cursor: 'grab',
+                    userSelect: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    touchAction: 'none',
+                    '&:active': { cursor: 'grabbing' },
+                  }}
                 >
-                  <span className={styles.stickerEmoji}>{s.emoji}</span>
-                  <button
-                    className={styles.stickerRemoveBtn}
+                  <Box
+                    component="span"
+                    sx={{
+                      fontSize: 28,
+                      lineHeight: 1,
+                      // pointer-events none để con trỏ luôn rơi vào khối cha đang kéo
+                      pointerEvents: 'none',
+                      filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))',
+                    }}
+                  >
+                    {s.emoji}
+                  </Box>
+                  <Box
+                    component="button"
+                    type="button"
                     onClick={() => removeSticker(s.id)}
                     onPointerDown={e => e.stopPropagation()}
+                    sx={{
+                      width: 16,
+                      height: 16,
+                      background: 'rgba(0,0,0,0.6)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      color: '#fff',
+                      fontSize: 12,
+                      lineHeight: 1,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      p: 0,
+                    }}
                   >
                     ×
-                  </button>
-                </div>
+                  </Box>
+                </Box>
               ))}
-            </div>
-            <div className={styles.stickerGrid}>
+            </Box>
+
+            <Box
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 0.5,
+                px: 2,
+                pb: 1.5,
+                justifyContent: 'center',
+              }}
+            >
               {STICKER_SET.map(emoji => (
-                <button
+                <Box
                   key={emoji}
-                  className={styles.stickerChoice}
+                  component="button"
+                  type="button"
                   onClick={() => addSticker(emoji)}
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    fontSize: 22,
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: 1,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'transform .15s',
+                    '&:hover': { bgcolor: 'action.hover', transform: 'scale(1.2)' },
+                  }}
                 >
                   {emoji}
-                </button>
+                </Box>
               ))}
-            </div>
-          </div>
+            </Box>
+          </Box>
         )}
 
-        {/* Actions */}
-        <div className={styles.actions}>
-          <button className={styles.btnCancel} onClick={onCancel}>{ep.cancel}</button>
-          <button
-            className={styles.btnApply}
-            onClick={handleApply}
-            disabled={isApplying || !croppedAreaPixels}
-          >
-            {isApplying ? ep.editorProcessing : ep.editorApply}
-          </button>
-        </div>
+      </DialogContent>
 
-      </div>
-    </div>
+      <DialogActions sx={{ px: 3, py: 2, gap: 1.25, borderTop: 1, borderColor: 'divider' }}>
+        <Button variant="outline-secondary" fullWidth onClick={onCancel}>
+          {ep.cancel}
+        </Button>
+        <Button
+          fullWidth
+          onClick={handleApply}
+          disabled={!croppedAreaPixels}
+          loading={isApplying}
+        >
+          {isApplying ? ep.editorProcessing : ep.editorApply}
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
 }

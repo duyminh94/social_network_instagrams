@@ -12,6 +12,12 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
+import IconButton from '@mui/material/IconButton'
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
 import api from '../../services/api'
 import { useAuth } from '../../hooks/useAuth'
 import { getUserPosts } from '../../features/post/postAPI'
@@ -24,6 +30,8 @@ import PostModal from '../../components/post/PostModal'
 import MediaTypeBadge from '../../components/post/MediaTypeBadge'
 import ReelViewerModal from '../../components/reel/ReelViewerModal'
 import Spinner from '../../components/common/Spinner'
+import { GridSkeleton } from '../../components/common/Skeletons'
+import { staggerIn } from '../../theme/animations'
 import DOMPurify from 'dompurify'
 import ReportModal from '../../components/common/ReportModal'
 import ConfirmModal from '../../components/common/ConfirmModal'
@@ -31,7 +39,7 @@ import { blockUser } from '../../features/block/blockAPI'
 import FollowListModal from '../../components/user/FollowListModal'
 import { formatNumber } from '../../utils/formatNumber'
 import Icon from '../../components/common/Icon'
-import styles from './Profile.module.css'
+import * as s from './profileStyles'
 
 export default function Profile() {
   const { username } = useParams()
@@ -50,7 +58,7 @@ export default function Profile() {
   const [reelViewerIndex, setReelViewerIndex] = useState(null)
   const [showReportUser, setShowReportUser] = useState(false)
   const [showBlockConfirm, setShowBlockConfirm] = useState(false)
-  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(null)
   const [followModal, setFollowModal] = useState(null)
 
   // FIX: reset tab về 'posts' mỗi khi chuyển sang profile khác
@@ -294,7 +302,7 @@ export default function Profile() {
   return (
     <div style={{ maxWidth: 935, margin: '0 auto', padding: '0 20px' }}>
       {/* Header: avatar + thông tin + nút follow/edit */}
-      <div className={styles.header}>
+      <Box sx={s.header}>
         <Avatar
           src={profile.avatarUrl || profile.avatar}
           username={profile.username}
@@ -320,85 +328,87 @@ export default function Profile() {
             }))
           } : undefined}
         />
-        <div className={styles.profileInfo}>
-          <div className={styles.topRow}>
-            <h2 className={styles.usernameTitle}>
+        <Box sx={s.profileInfo}>
+          <Box sx={s.topRow}>
+            <Typography component="h2" sx={s.usernameTitle}>
               {profile.username}
               {profile.isTrusted && (
                 <span style={{ marginLeft: 6, verticalAlign: 'middle' }} title={t.userCard?.verified || 'Tài khoản đã xác minh'}>
                   <Icon name="verified" size={20} />
                 </span>
               )}
-            </h2>
+            </Typography>
 
             {!isOwn && (
-              <div className={styles.profileMenuWrap}>
-                <button
-                  type="button"
-                  className={styles.profileDotsBtn}
-                  onClick={function () { setShowProfileMenu(function (v) { return !v }) }}
+              <Box sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <IconButton
+                  size="small"
                   title={t.profile.report}
+                  onClick={function (e) { setShowProfileMenu(e.currentTarget) }}
                 >
-                  ...
-                </button>
+                  <MoreHorizIcon />
+                </IconButton>
 
-                {showProfileMenu && (
-                  <div className={styles.profileMenu}>
-                    {!isOwn && (
-                      <button
-                        type="button"
-                        className={styles.profileMenuDanger}
-                        onClick={function () {
-                          setShowProfileMenu(false)
-                          setShowReportUser(true)
-                        }}
-                      >
-                        {t.profile.report}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className={styles.profileMenuDanger}
-                      onClick={function () {
-                        setShowProfileMenu(false)
-                        setShowBlockConfirm(true)
-                      }}
-                    >
-                      {t.profile.block}
-                    </button>
-                  </div>
-                )}
-              </div>
+                {/* anchorEl là chính nút vừa bấm, MUI tự canh vị trí menu theo nó */}
+                <Menu
+                  anchorEl={showProfileMenu}
+                  open={!!showProfileMenu}
+                  onClose={function () { setShowProfileMenu(null) }}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                >
+                  <MenuItem
+                    sx={{ color: '#ff5a6b', fontWeight: 700 }}
+                    onClick={function () {
+                      setShowProfileMenu(null)
+                      setShowReportUser(true)
+                    }}
+                  >
+                    {t.profile.report}
+                  </MenuItem>
+                  <MenuItem
+                    sx={{ color: '#ff5a6b', fontWeight: 700 }}
+                    onClick={function () {
+                      setShowProfileMenu(null)
+                      setShowBlockConfirm(true)
+                    }}
+                  >
+                    {t.profile.block}
+                  </MenuItem>
+                </Menu>
+              </Box>
             )}
-          </div>
+          </Box>
 
           {/* Thống kê: số bài, followers, following */}
-          <div className={styles.stats}>
-            <div className={styles.statItem}>
-              <span className={styles.statNum}>{formatNumber(profile.postsCount || posts.length || 0)}</span>
-              <span className={styles.statLabel}>{t.profile.posts}</span>
-            </div>
-            <button
-              className={styles.statItem}
+          <Box sx={s.stats}>
+            <Box sx={s.statItem}>
+              <Box component="span" sx={s.statNum}>{formatNumber(profile.postsCount || posts.length || 0)}</Box>
+              <Box component="span" sx={s.statLabel}>{t.profile.posts}</Box>
+            </Box>
+            <Box
+              component="button"
+              sx={s.statItem}
               onClick={() => canViewContent ? setFollowModal('followers') : toast.error(t.profile.privateToast)}
             >
-              <span className={styles.statNum}>{formatNumber(profile.followersCount || 0)}</span>
-              <span className={styles.statLabel}>{t.profile.followers}</span>
-            </button>
-            <button
-              className={styles.statItem}
+              <Box component="span" sx={s.statNum}>{formatNumber(profile.followersCount || 0)}</Box>
+              <Box component="span" sx={s.statLabel}>{t.profile.followers}</Box>
+            </Box>
+            <Box
+              component="button"
+              sx={s.statItem}
               onClick={() => canViewContent ? setFollowModal('following') : toast.error(t.profile.privateToast)}
             >
-              <span className={styles.statNum}>{formatNumber(profile.followingCount || 0)}</span>
-              <span className={styles.statLabel}>{t.profile.following}</span>
-            </button>
-          </div>
+              <Box component="span" sx={s.statNum}>{formatNumber(profile.followingCount || 0)}</Box>
+              <Box component="span" sx={s.statLabel}>{t.profile.following}</Box>
+            </Box>
+          </Box>
 
           <div style={{ marginTop: 12 }}>
             {profile.fullName && <div style={{ fontWeight: 600 }}>{profile.fullName}</div>}
             {profile.bio && (
-              <div
-                className={styles.bio}
+              <Box
+                sx={s.bio}
                 dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(profile.bio, {
                   ALLOWED_TAGS: ['b', 'i', 'u', 'br', 'span', 'p', 'div', 'strong', 'em'],
                   ALLOWED_ATTR: ['style'],
@@ -413,7 +423,7 @@ export default function Profile() {
           </div>
 
           {/* Chủ tài khoản → edit; người khác → follow/message giống Instagram */}
-          <div className={profile.isFollowing ? styles.profileActions + ' ' + styles.profileActionsFollowing : styles.profileActions}>
+          <Box sx={s.profileActions}>
             {isOwn ? (
               <Button
                 variant="outline-secondary"
@@ -425,9 +435,10 @@ export default function Profile() {
               </Button>
             ) : (
               <>
-                <button
+                <Box
+                  component="button"
                   type="button"
-                  className={profile.isFollowing ? styles.followingBtn : styles.followPrimaryBtn}
+                  sx={profile.isFollowing ? s.followingBtn : s.followPrimaryBtn}
                   disabled={followMutation.isPending}
                   onClick={() => followMutation.mutate(profile.isFollowing)}
                 >
@@ -436,24 +447,24 @@ export default function Profile() {
                     : profile.isFollowing
                       ? t.common.following
                       : t.common.follow}
-                  {profile.isFollowing && <span className={styles.downIcon}>⌄</span>}
-                </button>
+                  {profile.isFollowing && <Box component="span" sx={s.downIcon}>⌄</Box>}
+                </Box>
 
                 {profile.isFollowing && (
-                  <button
+                  <Box
+                    component="button"
                     type="button"
-                    className={styles.messageBtn}
+                    sx={s.messageBtn}
                     onClick={handleMessageClick}
                   >
                     Message
-                  </button>
+                  </Box>
                 )}
 
                 {/* Nút Accept/Decline khi người này có pending request follow mình */}
                 {profile.incomingFollowStatus === 'pending' && (
-                  <div className={styles.requestActions}>
+                  <Box sx={s.requestActions}>
                     <Button
-                      className="btn-primary"
                       size="sm"
                       style={{ fontWeight: 600 }}
                       loading={acceptMutation.isPending}
@@ -470,55 +481,58 @@ export default function Profile() {
                     >
                       {t.common.decline}
                     </Button>
-                  </div>
+                  </Box>
                 )}
               </>
             )}
-          </div>
-        </div>
-      </div>
+          </Box>
+        </Box>
+      </Box>
 
       {/* Tab Posts / Reels / Saved */}
-      <div className={styles.tabs}>
-        <button
-          className={`${styles.tab} ${activeTab === 'posts' ? styles.active : ''}`}
+      <Box sx={s.tabs}>
+        <Box
+          component="button"
+          sx={{ ...s.tab, ...(activeTab === 'posts' ? s.tabActive : null) }}
           onClick={() => setActiveTab('posts')}
         >
           {t.profile.postsTab}
-        </button>
-        <button
-          className={`${styles.tab} ${activeTab === 'reels' ? styles.active : ''}`}
+        </Box>
+        <Box
+          component="button"
+          sx={{ ...s.tab, ...(activeTab === 'reels' ? s.tabActive : null) }}
           onClick={() => setActiveTab('reels')}
         >
           🎬 {t.profile.reelsTab}
-        </button>
+        </Box>
         {/* Tab Saved chỉ hiện cho chủ tài khoản */}
         {isOwn && (
-          <button
-            className={`${styles.tab} ${activeTab === 'saved' ? styles.active : ''}`}
+          <Box
+            component="button"
+            sx={{ ...s.tab, ...(activeTab === 'saved' ? s.tabActive : null) }}
             onClick={() => setActiveTab('saved')}
           >
             {t.profile.savedTab}
-          </button>
+          </Box>
         )}
-      </div>
+      </Box>
 
       {/* ── Tab Reels ── */}
       {activeTab === 'reels' && (
         !canViewContent ? null :
-        reelsLoading ? <Spinner fullPage /> :
+        reelsLoading ? <GridSkeleton /> :
         userReels.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60, color: 'var(--ig-text-light)' }}>
             <div style={{ fontSize: 44, marginBottom: 12 }}>🎬</div>
             <div style={{ fontWeight: 600, fontSize: 16 }}>{t.profile.noReels}</div>
           </div>
         ) : (
-          <div className={styles.postsGrid}>
+          <Box sx={s.postsGrid}>
             {userReels.map(function (reel, i) {
               return (
-                <div
+                <Box
                   key={reel._id}
-                  className={styles.postThumb}
+                  sx={s.postThumb}
                   onClick={() => setReelViewerIndex(i)}
                   style={{ cursor: 'pointer', background: '#111', position: 'relative' }}
                 >
@@ -542,10 +556,10 @@ export default function Profile() {
                   }}>
                     ♥ {reel.likesCount || 0}
                   </div>
-                </div>
+                </Box>
               )
             })}
-          </div>
+          </Box>
         )
       )}
 
@@ -572,23 +586,23 @@ export default function Profile() {
             </div>
           </div>
         ) : postsLoading ? (
-          <Spinner fullPage />
+          <GridSkeleton />
         ) : displayPosts.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60, color: 'var(--ig-text-light)' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📷</div>
             <div style={{ fontWeight: 600, fontSize: 16 }}>{t.profile.noPosts}</div>
           </div>
         ) : (
-          <div className={styles.postsGrid}>
-            {displayPosts.map(function (post) {
+          <Box sx={s.postsGrid}>
+            {displayPosts.map(function (post, i) {
               const media = post.media?.[0]
               const mediaUrl = post.mediaUrl || media?.url
               const isVideo = post.mediaType === 'video' || media?.mediaType === 'video'
               const thumb = isVideo ? (post.thumbnailUrl || media?.thumbnailUrl) : mediaUrl
               return (
-                <div
+                <Box
                   key={post._id}
-                  className={styles.postThumb}
+                  sx={{ ...s.postThumb, ...staggerIn(i) }}
                   onClick={() => setSelectedPost(post)}
                   style={{ cursor: 'pointer', background: 'var(--bg-elevated)' }}
                 >
@@ -616,10 +630,10 @@ export default function Profile() {
                     </div>
                   )}
                   <MediaTypeBadge post={post} />
-                </div>
+                </Box>
               )
             })}
-          </div>
+          </Box>
         )
       )}
 

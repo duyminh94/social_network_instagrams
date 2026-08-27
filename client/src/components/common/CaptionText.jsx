@@ -1,8 +1,13 @@
 // components/common/CaptionText.jsx
 // Hiển thị caption và biến #hashtag thành link tới trang hashtag.
 // Regex dùng cờ Unicode (\p{L}\p{N}) để bắt cả hashtag tiếng Việt.
+//
+// Link dùng component Link của MUI gắn với Link của React Router:
+//   giữ được điều hướng không tải lại trang, đồng thời lấy màu từ theme
+//   thay vì đọc biến CSS bằng tay như bản cũ
 
-import { Link } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
+import Link from '@mui/material/Link'
 
 export default function CaptionText({ text }) {
   if (!text) return null
@@ -18,8 +23,10 @@ export default function CaptionText({ text }) {
           return (
             <Link
               key={i}
+              component={RouterLink}
               to={'/hashtag/' + encodeURIComponent(tag)}
-              style={{ color: 'var(--accent, #0095f6)', fontWeight: 500 }}
+              underline="hover"
+              sx={{ color: 'primary.main', fontWeight: 500 }}
             >
               {part}
             </Link>

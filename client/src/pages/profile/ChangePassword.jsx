@@ -4,11 +4,13 @@
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import { changePassword } from '../../features/auth/authAPI'
 import { useAuth } from '../../hooks/useAuth'
 import { useLanguage } from '../../i18n/LanguageContext'
 import SettingsSidebar from './SettingsSidebar'
-import styles from './EditProfile.module.css'
+import * as s from './settingsStyles'
 
 export default function ChangePassword() {
   const navigate = useNavigate()
@@ -47,33 +49,35 @@ export default function ChangePassword() {
   }
 
   return (
-    <div className={styles.page}>
+    <Box sx={s.page}>
       <SettingsSidebar active="password" />
 
-      <main className={styles.main}>
-        <div className={styles.sectionTitle}>{t.editProfile.changePassword}</div>
+      <Box component="main" sx={s.main}>
+        <Typography sx={s.sectionTitle}>{t.editProfile.changePassword}</Typography>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>{text.currentPasswordLabel}</label>
-            <input
+        <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+          <Box sx={s.fieldGroup}>
+            <Typography component="label" sx={s.fieldLabel}>{text.currentPasswordLabel}</Typography>
+            <Box
+              component="input"
               type="password"
               placeholder={text.currentPasswordPlaceholder}
-              className={`${styles.fieldInput} ${errors.oldPassword ? styles.error : ''}`}
+              sx={s.fieldInput(!!errors.oldPassword)}
               autoComplete="current-password"
               {...register('oldPassword', {
                 required: text.currentPasswordRequired,
               })}
             />
-            {errors.oldPassword && <div className={styles.fieldError}>{errors.oldPassword.message}</div>}
-          </div>
+            {errors.oldPassword && <Typography sx={s.fieldError}>{errors.oldPassword.message}</Typography>}
+          </Box>
 
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>{text.newPasswordLabel}</label>
-            <input
+          <Box sx={s.fieldGroup}>
+            <Typography component="label" sx={s.fieldLabel}>{text.newPasswordLabel}</Typography>
+            <Box
+              component="input"
               type="password"
               placeholder={text.newPasswordPlaceholder}
-              className={`${styles.fieldInput} ${errors.newPassword ? styles.error : ''}`}
+              sx={s.fieldInput(!!errors.newPassword)}
               autoComplete="new-password"
               {...register('newPassword', {
                 required: text.newPasswordRequired,
@@ -83,15 +87,16 @@ export default function ChangePassword() {
                 },
               })}
             />
-            {errors.newPassword && <div className={styles.fieldError}>{errors.newPassword.message}</div>}
-          </div>
+            {errors.newPassword && <Typography sx={s.fieldError}>{errors.newPassword.message}</Typography>}
+          </Box>
 
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>{text.confirmPasswordLabel}</label>
-            <input
+          <Box sx={s.fieldGroup}>
+            <Typography component="label" sx={s.fieldLabel}>{text.confirmPasswordLabel}</Typography>
+            <Box
+              component="input"
               type="password"
               placeholder={text.confirmPasswordPlaceholder}
-              className={`${styles.fieldInput} ${errors.confirmPassword ? styles.error : ''}`}
+              sx={s.fieldInput(!!errors.confirmPassword)}
               autoComplete="new-password"
               {...register('confirmPassword', {
                 required: text.confirmPasswordRequired,
@@ -100,23 +105,24 @@ export default function ChangePassword() {
                 },
               })}
             />
-            {errors.confirmPassword && <div className={styles.fieldError}>{errors.confirmPassword.message}</div>}
-          </div>
+            {errors.confirmPassword && <Typography sx={s.fieldError}>{errors.confirmPassword.message}</Typography>}
+          </Box>
 
-          <div className={styles.actions}>
-            <button type="submit" className={styles.btnSave} disabled={isSubmitting}>
+          <Box sx={s.actions}>
+            <Box component="button" type="submit" sx={s.btnSave} disabled={isSubmitting}>
               {isSubmitting ? t.common.saving : t.editProfile.changePassword}
-            </button>
-            <button
+            </Box>
+            <Box
+              component="button"
               type="button"
-              className={styles.btnCancel}
+              sx={s.btnCancel}
               onClick={goToEditProfile}
             >
               {t.common.cancel}
-            </button>
-          </div>
-        </form>
-      </main>
-    </div>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   )
 }

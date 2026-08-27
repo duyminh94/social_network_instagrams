@@ -1,7 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { GoogleOAuthProvider } from '@react-oauth/google'
-import 'bootstrap/dist/css/bootstrap.min.css'
 import './styles/index.css'
 import './styles/components.css'
 import ErrorBoundary from './components/common/ErrorBoundary'

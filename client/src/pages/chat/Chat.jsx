@@ -36,17 +36,20 @@ import {
 import api from '../../services/api'
 import Avatar from '../../components/common/Avatar'
 import Spinner from '../../components/common/Spinner'
-import styles from './Chat.module.css'
+import { ListSkeleton } from '../../components/common/Skeletons'
+import { staggerIn } from '../../theme/animations'
+import Box from '@mui/material/Box'
+import * as s from './chatStyles'
 
 // ── Icon components ──
 
 function TypingIndicator() {
   return (
-    <div className={styles.typing}>
-      <div className={styles.typingDot} />
-      <div className={styles.typingDot} />
-      <div className={styles.typingDot} />
-    </div>
+    <Box sx={s.typing}>
+      <Box sx={s.typingDot(0)} />
+      <Box sx={s.typingDot(1)} />
+      <Box sx={s.typingDot(2)} />
+    </Box>
   )
 }
 
@@ -1167,28 +1170,30 @@ export default function Chat() {
   }
 
   return (
-    <div className={styles.layout}>
+    <Box sx={s.layout}>
 
       {/* ── SIDEBAR ── */}
-      <div className={styles.sidebar}>
+      <Box sx={s.sidebar}>
 
         {/* Header */}
-        <div className={styles.sidebarHeader}>
+        <Box sx={s.sidebarHeader}>
           {showPending ? (
-            <button className={styles.iconBtn} onClick={function () { setShowPending(false); setActiveConvId(null) }}>
+            <Box component="button" type="button" sx={s.iconBtn(false)} onClick={function () { setShowPending(false); setActiveConvId(null) }}>
               <BackIcon />
-            </button>
+            </Box>
           ) : (
-            <div className={styles.sidebarUsername}>
+            <Box sx={s.sidebarUsername}>
               <span>{user?.username || 'Tin nhắn'}</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M7 10l5 5 5-5z" />
               </svg>
-            </div>
+            </Box>
           )}
           {!showPending && (
-            <button
-              className={styles.iconBtn}
+            <Box
+              component="button"
+              type="button"
+              sx={s.iconBtn(false)}
               onClick={function () {
                 if (showNewConv) {
                   resetNewConversationPanel()
@@ -1199,115 +1204,121 @@ export default function Chat() {
               title={t.chat.newMessage}
             >
               <ComposeIcon />
-            </button>
+            </Box>
           )}
-        </div>
+        </Box>
 
         {/* Nội dung sidebar thay đổi theo trạng thái */}
         {showPending ? (
 
           /* ── PENDING LIST ── */
-          <div className={styles.pendingView}>
-            <div className={styles.pendingViewTitle}>{t.chat.pending}</div>
-            <p className={styles.pendingViewDesc}>{t.chat.pendingDesc}</p>
+          <Box sx={s.pendingView}>
+            <Box sx={s.pendingViewTitle}>{t.chat.pending}</Box>
+            <Box component="p" sx={s.pendingViewDesc}>{t.chat.pendingDesc}</Box>
 
-            {pendingLoading && <Spinner />}
+            {pendingLoading && <ListSkeleton count={3} />}
 
             {!pendingLoading && pendingConversations.length === 0 && (
-              <p className={styles.emptyConvMsg}>{t.chat.noPending}</p>
+              <Box component="p" sx={s.emptyConvMsg}>{t.chat.noPending}</Box>
             )}
 
             {pendingConversations.map(function (conv) {
               var other = getOtherParticipant(conv)
               var displayName = other?.fullName || other?.username || 'Unknown'
               var lastMsg = conv.lastMessage
+              var isActiveItem = String(activeConvId) === String(conv._id)
 
               return (
-                <div
+                <Box
                   key={conv._id}
-                  className={styles.convItem + (String(activeConvId) === String(conv._id) ? ' ' + styles.active : '')}
+                  sx={s.convItem(isActiveItem, false)}
                   onClick={function () { handleSelectPending(conv) }}
                 >
                   <Avatar src={other?.avatarUrl} username={displayName} size="md" isOnline={!!onlineUsers?.has(String(other?._id || ''))} />
-                  <div className={styles.convMeta}>
-                    <div className={styles.convName}>{displayName}</div>
-                    <div className={styles.convPreview}>
+                  <Box sx={s.convMeta}>
+                    <Box sx={s.convName(isActiveItem, false)}>{displayName}</Box>
+                    <Box sx={s.convPreview(false)}>
                       {lastMsg?.content || 'Tin nhắn mới'}
-                    </div>
-                  </div>
-                  <div className={styles.pendingDot} />
-                </div>
+                    </Box>
+                  </Box>
+                  <Box sx={s.pendingDot} />
+                </Box>
               )
             })}
-          </div>
+          </Box>
 
         ) : (
 
           /* ── NORMAL LIST ── */
           <>
             {/* Search */}
-            <div className={styles.searchWrap}>
-              <svg className={styles.searchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <Box sx={s.searchWrap}>
+              <Box component="svg" sx={s.searchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                className={styles.searchInput}
+              </Box>
+              <Box
+                component="input"
+                sx={s.searchInput}
                 type="text"
                 placeholder={t.chat.search}
                 value={sidebarSearch}
                 onChange={function (e) { setSidebarSearch(e.target.value) }}
               />
-            </div>
+            </Box>
 
             {/* Ghi chú */}
-            <div className={styles.notesSection}>
-              <div className={styles.notesLabel}>Đến lượt bạn...</div>
-              <div className={styles.notesItem}>
-                <div className={styles.notesAvatar}>
+            <Box sx={s.notesSection}>
+              <Box sx={s.notesLabel}>Đến lượt bạn...</Box>
+              <Box sx={s.notesItem}>
+                <Box sx={s.notesAvatar}>
                   <Avatar src={user?.avatarUrl || user?.avatar} username={user?.username} size="md" />
-                </div>
-                <span className={styles.notesText}>Ghi chú của bạn</span>
-              </div>
-            </div>
+                </Box>
+                <Box component="span" sx={s.notesText}>Ghi chú của bạn</Box>
+              </Box>
+            </Box>
 
             {/* Header list */}
-            <div className={styles.convListHeader}>
-              <span className={styles.convListTitle}>{t.chat.title}</span>
-              <button
-                className={styles.pendingBtn}
+            <Box sx={s.convListHeader}>
+              <Box component="span" sx={s.convListTitle}>{t.chat.title}</Box>
+              <Box
+                component="button"
+                type="button"
+                sx={s.pendingBtn}
                 onClick={function () { setShowPending(true); resetNewConversationPanel() }}
               >
                 {t.chat.pending}
                 {pendingCount > 0 && (
-                  <span className={styles.pendingBadge}>{pendingCount}</span>
+                  <Box component="span" sx={s.pendingBadge}>{pendingCount}</Box>
                 )}
-              </button>
-            </div>
+              </Box>
+            </Box>
 
             {/* Panel tạo conversation mới */}
             {showNewConv && (
-              <div className={styles.newConvPanel}>
+              <Box sx={s.newConvPanel}>
                 {newConvSelectedUsers.length > 0 && (
-                  <div className={styles.newConvSelectedList}>
+                  <Box sx={s.newConvSelectedList}>
                     {newConvSelectedUsers.map(function (selectedUser) {
                       return (
-                        <button
+                        <Box
+                          component="button"
                           key={selectedUser._id}
                           type="button"
-                          className={styles.newConvSelectedChip}
+                          sx={s.newConvSelectedChip}
                           onClick={function () { toggleNewConversationUser(selectedUser) }}
                         >
                           <span>{selectedUser.fullName || selectedUser.username}</span>
                           <span aria-hidden="true">x</span>
-                        </button>
+                        </Box>
                       )
                     })}
-                  </div>
+                  </Box>
                 )}
 
                 {newConvSelectedUsers.length > 1 && (
-                  <input
-                    className={styles.newConvInput}
+                  <Box
+                    component="input"
+                    sx={s.newConvInput}
                     type="text"
                     placeholder={t.chat.groupNamePlaceholder}
                     value={newGroupName}
@@ -1315,8 +1326,9 @@ export default function Chat() {
                   />
                 )}
 
-                <input
-                  className={styles.newConvInput}
+                <Box
+                  component="input"
+                  sx={s.newConvInput}
                   type="text"
                   placeholder={t.chat.searchUser}
                   value={newConvSearch}
@@ -1328,23 +1340,24 @@ export default function Chat() {
                     return String(item._id) === String(u._id)
                   })
                   return (
-                    <div
+                    <Box
                       key={u._id}
-                      className={isSelected ? styles.newConvUser + ' ' + styles.newConvUserSelected : styles.newConvUser}
+                      sx={s.newConvUser(isSelected)}
                       onClick={function () { toggleNewConversationUser(u) }}
                     >
                       <Avatar src={u.avatarUrl} username={u.username} size="sm" />
                       <div>
-                        <div className={styles.newConvUserName}>{u.username}</div>
-                        <div className={styles.newConvUserSub}>{u.fullName}</div>
+                        <Box sx={s.newConvUserName}>{u.username}</Box>
+                        <Box sx={s.newConvUserSub}>{u.fullName}</Box>
                       </div>
-                      {isSelected && <span className={styles.newConvCheck}>✓</span>}
-                    </div>
+                      {isSelected && <Box component="span" sx={s.newConvCheck}>✓</Box>}
+                    </Box>
                   )
                 })}
 
-                <button
-                  className={styles.newConvCreateBtn}
+                <Box
+                  component="button"
+                  sx={s.newConvCreateBtn}
                   type="button"
                   disabled={newConvSelectedUsers.length === 0 || isCreatingConversation}
                   onClick={startSelectedConversation}
@@ -1354,24 +1367,24 @@ export default function Chat() {
                     : newConvSelectedUsers.length > 1
                       ? t.chat.createGroup
                       : t.chat.startConversation}
-                </button>
-              </div>
+                </Box>
+              </Box>
             )}
 
             {/* Conversation list */}
-            {convsLoading && <Spinner />}
+            {convsLoading && <ListSkeleton />}
 
             {!convsLoading && filteredConversations.length === 0 && searchNewPeople.length === 0 && (
-              <p className={styles.emptyConvMsg}>{sidebarSearch.trim() ? t.chat.noResults : t.chat.emptyConvList}</p>
+              <Box component="p" sx={s.emptyConvMsg}>{sidebarSearch.trim() ? t.chat.noResults : t.chat.emptyConvList}</Box>
             )}
 
-            {filteredConversations.map(function (conv) {
+            {filteredConversations.map(function (conv, convIndex) {
               var other = getOtherParticipant(conv)
               var isGroup = conv.type === 'group'
               var displayName = isGroup ? (conv.name || t.chat.groupFallback) : (other?.fullName || other?.username || 'Unknown')
               var lastMsg = conv.lastMessage
               var unread = conv.isUnread && String(activeConvId) !== String(conv._id)
-              var statusClass = unread ? styles.unread : styles.read
+              var isActiveItem = String(activeConvId) === String(conv._id)
               var lastSenderId = String(lastMsg?.senderId?._id || lastMsg?.senderId || '')
               var isMineMsg = lastSenderId === myId
               var previewText = !lastMsg ? t.chat.startConversation
@@ -1382,25 +1395,21 @@ export default function Chat() {
               var timeStr = timeAgo(conv.lastActivityAt || lastMsg?.createdAt)
 
               return (
-                <div
+                <Box
                   key={conv._id}
-                  className={
-                    styles.convItem
-                    + (String(activeConvId) === String(conv._id) ? ' ' + styles.active : '')
-                    + ' ' + statusClass
-                  }
+                  sx={{ ...s.convItem(isActiveItem, unread), ...staggerIn(convIndex, { step: 25, maxDelay: 200 }) }}
                   onClick={function () { handleSelectConv(conv) }}
                 >
                   <Avatar src={isGroup ? conv.avatarUrl : other?.avatarUrl} username={displayName} size="md" isOnline={!isGroup && !!onlineUsers?.has(String(other?._id || ''))} />
-                  <div className={styles.convMeta}>
-                    <div className={styles.convName}>{displayName}</div>
-                    <div className={styles.convPreview}>
-                      <span className={styles.convPreviewText}>{previewText}</span>
-                      {timeStr && <span className={styles.convPreviewDot}> · {timeStr}</span>}
-                    </div>
-                  </div>
-                  {unread && <span className={styles.unreadDot} />}
-                </div>
+                  <Box sx={s.convMeta}>
+                    <Box sx={s.convName(isActiveItem, unread)}>{displayName}</Box>
+                    <Box sx={s.convPreview(unread)}>
+                      <Box component="span" className="convPreviewText">{previewText}</Box>
+                      {timeStr && <Box component="span" className="convPreviewDot"> · {timeStr}</Box>}
+                    </Box>
+                  </Box>
+                  {unread && <Box component="span" sx={s.unreadDot} />}
+                </Box>
               )
             })}
 
@@ -1408,74 +1417,76 @@ export default function Chat() {
                 không cần mở "soạn tin mới". Click → tạo/mở chat 1-1 ngay. */}
             {sidebarSearch.trim() && searchNewPeople.length > 0 && (
               <>
-                <div className={styles.convListHeader}>
-                  <span className={styles.convListTitle}>{t.chat.messageTo}</span>
-                </div>
+                <Box sx={s.convListHeader}>
+                  <Box component="span" sx={s.convListTitle}>{t.chat.messageTo}</Box>
+                </Box>
                 {searchNewPeople.map(function (u) {
                   return (
-                    <div
+                    <Box
                       key={u._id}
-                      className={styles.convItem}
+                      sx={s.convItem(false, false)}
                       onClick={function () { startConversation(u._id, u); setSidebarSearch('') }}
                     >
                       <Avatar src={u.avatarUrl} username={u.username} size="md" />
-                      <div className={styles.convMeta}>
-                        <div className={styles.convName}>{u.username}</div>
-                        <div className={styles.convPreview}>
-                          <span className={styles.convPreviewText}>{u.fullName || ''}</span>
-                        </div>
-                      </div>
-                    </div>
+                      <Box sx={s.convMeta}>
+                        <Box sx={s.convName(false, false)}>{u.username}</Box>
+                        <Box sx={s.convPreview(false)}>
+                          <Box component="span" className="convPreviewText">{u.fullName || ''}</Box>
+                        </Box>
+                      </Box>
+                    </Box>
                   )
                 })}
               </>
             )}
           </>
         )}
-      </div>
+      </Box>
 
       {/* ── CỬA SỔ CHAT ── */}
       {activeConvId ? (
-        <div className={styles.window + ' ' + styles.open}>
+        <Box sx={s.chatWindow(true)}>
 
           {/* Header */}
-          <div className={styles.chatHeader}>
-            <div className={styles.chatHeaderInfo}>
+          <Box sx={s.chatHeader}>
+            <Box sx={s.chatHeaderInfo}>
               <Avatar src={activeIsGroup ? activeConv?.avatarUrl : activeOther?.avatarUrl} username={activeDisplayName} size="md" isOnline={!activeIsGroup && !!onlineUsers?.has(String(activeOther?._id || ''))} />
-              <div className={styles.chatHeaderText}>
-                <div className={styles.chatHeaderName}>{activeDisplayName}</div>
+              <Box sx={s.chatHeaderText}>
+                <Box sx={s.chatHeaderName}>{activeDisplayName}</Box>
                 {!activeIsGroup && activeOther?.username && (
-                  <div className={styles.chatHeaderSub}>{activeOther.username}</div>
+                  <Box sx={s.chatHeaderSub}>{activeOther.username}</Box>
                 )}
-              </div>
-            </div>
+              </Box>
+            </Box>
             {!isPendingConv && (
-              <div className={styles.chatHeaderActions}>
-                <button className={styles.iconBtn} title={t.chat.phoneCall}><PhoneIcon /></button>
-                <button className={styles.iconBtn} title={t.chat.videoCall}><VideoIcon /></button>
-                <button
-                  className={styles.iconBtn + (showDetails ? ' ' + styles.iconBtnActive : '')}
+              <Box sx={s.chatHeaderActions}>
+                <Box component="button" type="button" sx={s.iconBtn(false)} title={t.chat.phoneCall}><PhoneIcon /></Box>
+                <Box component="button" type="button" sx={s.iconBtn(false)} title={t.chat.videoCall}><VideoIcon /></Box>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.iconBtn(showDetails)}
                   title={t.chat.info}
                   onClick={function () { setShowDetails(function (v) { return !v }) }}
                 >
                   <InfoIcon />
-                </button>
-              </div>
+                </Box>
+              </Box>
             )}
-          </div>
+          </Box>
 
           {showDetails && (
-            <aside className={styles.detailsPanel}>
-              <div className={styles.detailsTitle}>{t.chat.details}</div>
+            <Box component="aside" sx={s.detailsPanel}>
+              <Box sx={s.detailsTitle}>{t.chat.details}</Box>
 
-              <button className={styles.detailsNotifyRow} type="button" onClick={handleToggleMute}>
-                <span className={styles.detailsNotifyIcon}><BellIcon /></span>
-                <span className={styles.detailsNotifyText} style={{ whiteSpace: 'pre-line' }}>{t.chat.mute}</span>
-                <span className={styles.detailsSwitch + (isMuted ? ' ' + styles.detailsSwitchOn : '')}><span /></span>
-              </button>
+              <Box component="button" sx={s.detailsNotifyRow} type="button" onClick={handleToggleMute}>
+                <Box component="span" sx={s.detailsNotifyIcon}><BellIcon /></Box>
+                <Box component="span" sx={{ ...s.detailsNotifyText, whiteSpace: 'pre-line' }}>{t.chat.mute}</Box>
+                <Box component="span" sx={s.detailsSwitch(isMuted)}><span /></Box>
+              </Box>
 
-              <div className={styles.detailsSection}>
-                <div className={styles.detailsSectionTitle}>{t.chat.members}</div>
+              <Box sx={s.detailsSection}>
+                <Box sx={s.detailsSectionTitle}>{t.chat.members}</Box>
                 {detailMembers.map(function (member) {
                   var memberUser = member.userId || {}
                   var memberName = memberUser.fullName || memberUser.username || 'Unknown'
@@ -1483,104 +1494,107 @@ export default function Chat() {
                   // Chỉ kick thành viên thường — admin không được kick admin khác
                   var canKick = isGroupAdmin && memberId !== myId && member.role !== 'admin'
                   return (
-                    <div key={memberId} className={styles.detailsMemberRow}>
-                      <button
-                        className={styles.detailsMember}
+                    <Box key={memberId} sx={s.detailsMemberRow}>
+                      <Box
+                        component="button"
+                        sx={s.detailsMember}
                         type="button"
                         onClick={function () {
                           if (memberUser.username) navigate('/' + memberUser.username)
                         }}
                       >
                         <Avatar src={memberUser.avatarUrl} username={memberName} size="md" />
-                        <span className={styles.detailsMemberText}>
-                          <span className={styles.detailsMemberName}>{memberName}</span>
-                          <span className={styles.detailsMemberUsername}>
+                        <Box component="span" sx={s.detailsMemberText}>
+                          <Box component="span" sx={s.detailsMemberName}>{memberName}</Box>
+                          <Box component="span" sx={s.detailsMemberUsername}>
                             {memberUser.username}
                             {member.role === 'admin' ? ' ' + t.chat.adminSuffix : ''}
-                          </span>
-                        </span>
-                      </button>
+                          </Box>
+                        </Box>
+                      </Box>
                       {canKick && (
-                        <button
+                        <Box
+                          component="button"
                           type="button"
-                          className={styles.detailsKickBtn}
+                          sx={s.detailsKickBtn}
                           onClick={function () { handleKickMember(member) }}
                         >
                           {t.chat.kick}
-                        </button>
+                        </Box>
                       )}
-                    </div>
+                    </Box>
                   )
                 })}
-              </div>
+              </Box>
 
-              <div className={styles.detailsBottom}>
-                <button type="button" className={styles.detailsAction} onClick={handleNickname}>{t.chat.nickname}</button>
+              <Box sx={s.detailsBottom}>
+                <Box component="button" type="button" sx={s.detailsAction(false)} onClick={handleNickname}>{t.chat.nickname}</Box>
                 {!activeIsGroup && (
-                  <button type="button" className={styles.detailsAction} onClick={handleBlockUser} disabled={isBlocking}>
+                  <Box component="button" type="button" sx={s.detailsAction(false)} onClick={handleBlockUser} disabled={isBlocking}>
                     {isBlocking ? t.chat.blocking : t.chat.block}
-                  </button>
+                  </Box>
                 )}
                 {!activeIsGroup && (
-                  <button type="button" className={styles.detailsAction + ' ' + styles.detailsDanger} onClick={handleReportUser} disabled={isReporting}>
+                  <Box component="button" type="button" sx={s.detailsAction(true)} onClick={handleReportUser} disabled={isReporting}>
                     {isReporting ? t.chat.reporting : t.chat.report}
-                  </button>
+                  </Box>
                 )}
                 {activeIsGroup && isGroupCreator && (
-                  <button type="button" className={styles.detailsAction + ' ' + styles.detailsDanger} onClick={handleDeleteGroup} disabled={isDeletingChat}>
+                  <Box component="button" type="button" sx={s.detailsAction(true)} onClick={handleDeleteGroup} disabled={isDeletingChat}>
                     {isDeletingChat ? t.chat.deleting : t.chat.deleteGroup}
-                  </button>
+                  </Box>
                 )}
                 {activeIsGroup ? (
-                  <button type="button" className={styles.detailsAction + ' ' + styles.detailsDanger} onClick={handleLeaveGroup} disabled={isDeletingChat}>
+                  <Box component="button" type="button" sx={s.detailsAction(true)} onClick={handleLeaveGroup} disabled={isDeletingChat}>
                     {isDeletingChat ? t.chat.leaving : t.chat.leaveGroup}
-                  </button>
+                  </Box>
                 ) : (
-                  <button type="button" className={styles.detailsAction + ' ' + styles.detailsDanger} onClick={handleDeleteChat} disabled={isDeletingChat}>
+                  <Box component="button" type="button" sx={s.detailsAction(true)} onClick={handleDeleteChat} disabled={isDeletingChat}>
                     {isDeletingChat ? t.chat.deleting : t.chat.deleteChat}
-                  </button>
+                  </Box>
                 )}
-              </div>
-            </aside>
+              </Box>
+            </Box>
           )}
 
           {/* Messages */}
-          <div className={styles.messages}>
+          <Box sx={s.messages}>
             {msgLoading && <Spinner />}
 
             {/* Profile card: chỉ hiện cho direct chat trống hoặc pending — không hiện cho group */}
             {!msgLoading && (messages.length === 0 || isPendingConv) && activeOther && !activeIsGroup && (
-              <div className={styles.profileCard}>
+              <Box sx={s.profileCard}>
                 <Avatar src={activeOther.avatarUrl} username={activeOther.username} size="xl" isOnline={!!onlineUsers?.has(String(activeOther._id || ''))} />
-                <div className={styles.profileCardName}>{activeOther.fullName || activeOther.username}</div>
-                <div className={styles.profileCardSub}>{activeOther.username} · Instagram</div>
-                <button className={styles.profileCardBtn} onClick={function () { navigate('/' + activeOther.username) }}>
+                <Box sx={s.profileCardName}>{activeOther.fullName || activeOther.username}</Box>
+                <Box sx={s.profileCardSub}>{activeOther.username} · Instagram</Box>
+                <Box component="button" type="button" sx={s.profileCardBtn} onClick={function () { navigate('/' + activeOther.username) }}>
                   {t.chat.viewProfile}
-                </button>
-              </div>
+                </Box>
+              </Box>
             )}
 
             {/* Hiện tin nhắn đầu tiên khi pending (người nhận xem trước để quyết định) */}
             {isPendingConv && activeConv?.lastMessage?.content && (
-              <div className={styles.pendingPreviewMsg}>
-                <div className={styles.bubbleOther + ' ' + styles.bubble}>
+              <Box sx={s.pendingPreviewMsg}>
+                <Box sx={s.bubble(false, false)}>
                   {activeConv.lastMessage.content}
-                </div>
-              </div>
+                </Box>
+              </Box>
             )}
 
             {/* Tin nhắn bình thường (chỉ hiện khi không phải pending) */}
             {!isPendingConv && messages.map(function (msg, i) {
               if (msg.messageType === 'system') {
                 return (
-                  <div key={msg._id || i} className={styles.systemMessage}>
+                  <Box key={msg._id || i} sx={s.systemMessage}>
                     {msg.content}
-                  </div>
+                  </Box>
                 )
               }
 
               var senderId = String(msg.senderId?._id || msg.senderId || '')
               var isMine = senderId === myId
+              var isMedia = msg.messageType === 'image' || msg.messageType === 'video'
 
               var nextMsg = messages[i + 1]
               var nextSenderId = String(nextMsg?.senderId?._id || nextMsg?.senderId || '')
@@ -1598,118 +1612,133 @@ export default function Chat() {
               var showName = !isMine && isGroup && (prevMsg?.messageType === 'system' || prevSenderId !== senderId)
 
               return (
-                <div key={msg._id || i} className={styles.messageRow + ' ' + (isMine ? styles.rowMine : styles.rowOther)}>
+                <Box key={msg._id || i} sx={s.messageRow(isMine)}>
                   {!isMine && (
                     isLastInGroup
-                      ? <div className={styles.avatarSlot}><Avatar src={senderInfo?.avatarUrl} username={senderInfo?.username} size="sm" /></div>
-                      : <div className={styles.avatarGap} />
+                      ? <Box sx={s.avatarSlot}><Avatar src={senderInfo?.avatarUrl} username={senderInfo?.username} size="sm" /></Box>
+                      : <Box sx={s.avatarGap} />
                   )}
-                  <div className={styles.bubbleWrap}>
-                    {showName && <div className={styles.senderName}>{senderInfo?.username}</div>}
-                    <div className={styles.bubble + ' ' + (isMine ? styles.bubbleMine : styles.bubbleOther) + (msg.messageType === 'image' || msg.messageType === 'video' ? ' ' + styles.bubbleMedia : '')}>
+                  <Box sx={s.bubbleWrap(isMine)}>
+                    {showName && <Box sx={s.senderName}>{senderInfo?.username}</Box>}
+                    <Box sx={s.bubble(isMine, isMedia)}>
                       {msg.replyToId && (
-                        <div className={styles.replyPreviewInBubble}>
+                        <Box sx={s.replyPreviewInBubble(isMine)}>
                           <span>{getMessagePreview(msg.replyToId)}</span>
-                        </div>
+                        </Box>
                       )}
                       {msg.storyMediaUrl && (
-                        <div className={styles.storyReplyPreview}>
+                        <Box sx={s.storyReplyPreview}>
                           {msg.storyMediaType === 'video' ? (
-                            <video src={msg.storyMediaUrl} className={styles.storyReplyMedia} muted />
+                            <Box component="video" src={msg.storyMediaUrl} sx={s.storyReplyMedia} muted />
                           ) : (
-                            <img src={msg.storyMediaUrl} alt="" className={styles.storyReplyMedia} />
+                            <Box component="img" src={msg.storyMediaUrl} alt="" sx={s.storyReplyMedia} />
                           )}
-                        </div>
+                        </Box>
                       )}
                       {msg.messageType === 'image' ? (
-                        <img src={msg.content} alt="" className={styles.msgImage} />
+                        <Box component="img" src={msg.content} alt="" sx={s.msgImage} />
                       ) : msg.messageType === 'video' ? (
-                        <video src={msg.content} controls className={styles.msgVideo} />
+                        <Box component="video" src={msg.content} controls sx={s.msgVideo} />
                       ) : (
                         msg.content
                       )}
-                    </div>
+                    </Box>
                     {isMine && i === lastMyMsgIdx && hasReaders && (
-                      <div className={styles.readReceipt}>{t.chat.seen}</div>
+                      <Box sx={s.readReceipt}>{t.chat.seen}</Box>
                     )}
-                  </div>
-                  <button
+                  </Box>
+                  <Box
+                    component="button"
                     type="button"
-                    className={styles.messageReplyBtn}
+                    className="messageReplyBtn"
+                    sx={s.messageReplyBtn}
                     onClick={function () { handleReplyMessage(msg) }}
                   >
                     {t.chat.reply}
-                  </button>
-                </div>
+                  </Box>
+                </Box>
               )
             })}
 
             {!isPendingConv && isTyping && <TypingIndicator />}
             <div ref={messagesEndRef} />
-          </div>
+          </Box>
 
           {/* Bottom: input bình thường hoặc nút Accept/Decline cho pending */}
           {isPendingConv ? (
-            <div className={styles.pendingActions}>
-              <p className={styles.pendingActionsHint}>
+            <Box sx={s.pendingActions}>
+              <Box component="p" sx={s.pendingActionsHint}>
                 {t.chat.pendingFrom.replace('{username}', activeOther?.username || '')}
-              </p>
-              <div className={styles.pendingActionsRow}>
-                <button
-                  className={styles.acceptBtn}
+              </Box>
+              <Box sx={s.pendingActionsRow}>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.acceptBtn}
                   onClick={handleAccept}
                   disabled={isAccepting}
                 >
                   {isAccepting ? t.chat.processing : t.chat.acceptBtn}
-                </button>
-                <button
-                  className={styles.declineBtn}
+                </Box>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.declineBtn}
                   onClick={handleDecline}
                   disabled={isDeclining}
                 >
                   {isDeclining ? t.chat.processing : t.chat.decline}
-                </button>
-              </div>
-            </div>
+                </Box>
+              </Box>
+            </Box>
           ) : blockState.isBlocked ? (
             /* ── "Bức màn" khóa nhắn tin khi đã chặn nhau ── */
-            <div style={{ padding: '20px 24px', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
-              <p style={{ fontWeight: 600, color: 'var(--ink)', margin: '0 0 4px', fontSize: 14 }}>
+            <Box sx={{ py: 2.5, px: 3, textAlign: 'center', borderTop: '1px solid', borderTopColor: 'divider' }}>
+              <Box component="p" sx={{ fontWeight: 600, color: 'text.primary', m: 0, mb: .5, fontSize: 14 }}>
                 {blockState.iBlocked ? t.chat.blockedCurtainYou : t.chat.blockedCurtainOther}
-              </p>
-              <p style={{ color: 'var(--ink-muted)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5 }}>
+              </Box>
+              <Box component="p" sx={{ color: 'text.secondary', fontSize: 13, m: 0, mb: 2, lineHeight: 1.5 }}>
                 {t.chat.blockedCurtainHint}
-              </p>
+              </Box>
               {blockState.iBlocked && (
-                <button
+                <Box
+                  component="button"
                   type="button"
                   onClick={handleUnblockFromChat}
-                  style={{
-                    width: '100%', padding: '12px', borderRadius: 8,
-                    border: '1px solid var(--border)', background: 'var(--bg-elevated)',
-                    color: 'var(--ink)', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                  sx={{
+                    width: '100%',
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper',
+                    color: 'text.primary',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: 'pointer',
                   }}
                 >
                   {t.chat.unblock}
-                </button>
+                </Box>
               )}
-            </div>
+            </Box>
           ) : (
-            <div className={styles.inputWrap}>
+            <Box sx={s.inputWrap}>
               {replyTarget && (
-                <div className={styles.replyComposer}>
-                  <div className={styles.replyComposerText}>
+                <Box sx={s.replyComposer}>
+                  <Box sx={s.replyComposerText}>
                     <strong>{t.chat.replyTo.replace('{name}', getMessageSenderName(replyTarget))}</strong>
                     <span>{getMessagePreview(replyTarget)}</span>
-                  </div>
-                  <button
+                  </Box>
+                  <Box
+                    component="button"
                     type="button"
-                    className={styles.replyCancelBtn}
+                    sx={s.replyCancelBtn}
                     onClick={function () { setReplyTarget(null) }}
                   >
                     ×
-                  </button>
-                </div>
+                  </Box>
+                </Box>
               )}
               <input
                 type="file"
@@ -1720,7 +1749,7 @@ export default function Chat() {
               />
               {/* Emoji picker — hiện phía trên input khi bấm icon */}
               {showEmojiPicker && (
-                <div className={styles.emojiPickerWrap} ref={emojiPickerRef}>
+                <Box sx={s.emojiPickerWrap} ref={emojiPickerRef}>
                   <EmojiPicker
                     onEmojiClick={handleEmojiClick}
                     theme="dark"
@@ -1729,85 +1758,90 @@ export default function Chat() {
                     searchPlaceholder="Tìm emoji..."
                     previewConfig={{ showPreview: false }}
                   />
-                </div>
+                </Box>
               )}
-              <form onSubmit={handleSend} className={styles.inputArea}>
-                <div className={styles.inputBox}>
-                  <button
+              <Box component="form" onSubmit={handleSend} sx={s.inputArea}>
+                <Box sx={s.inputBox}>
+                  <Box
+                    component="button"
                     type="button"
-                    className={styles.inputIconBtn + (showEmojiPicker ? ' ' + styles.inputIconActive : '')}
+                    sx={s.inputIconBtn(showEmojiPicker)}
                     onClick={function () { setShowEmojiPicker(function (v) { return !v }) }}
                   >
                     <EmojiIcon />
-                  </button>
-                  <input
+                  </Box>
+                  <Box
+                    component="input"
                     type="text"
-                    className={styles.inputField}
+                    sx={s.inputField}
                     placeholder={t.chat.messagePlaceholder}
                     value={input}
                     onChange={handleInputChange}
                   />
-                </div>
+                </Box>
                 {input.trim() ? (
-                  <button type="submit" className={styles.sendTextBtn}>{t.chat.send}</button>
+                  <Box component="button" type="submit" sx={s.sendTextBtn}>{t.chat.send}</Box>
                 ) : (
-                  <div className={styles.inputRightIcons}>
-                    <button type="button" className={styles.inputIconBtn}><MicIcon /></button>
-                    <button
+                  <Box sx={s.inputRightIcons}>
+                    <Box component="button" type="button" sx={s.inputIconBtn(false)}><MicIcon /></Box>
+                    <Box
+                      component="button"
                       type="button"
-                      className={styles.inputIconBtn}
+                      sx={s.inputIconBtn(false)}
                       onClick={function () { fileInputRef.current?.click() }}
                       disabled={isUploadingMedia}
                       title={t.chat.sendMedia}
                     >
                       {isUploadingMedia ? <Spinner size={18} /> : <ImageIcon />}
-                    </button>
-                  </div>
+                    </Box>
+                  </Box>
                 )}
-              </form>
-            </div>
+              </Box>
+            </Box>
           )}
-        </div>
+        </Box>
       ) : (
-        <div className={styles.window}>
-          <div className={styles.windowEmpty}>
-            <div className={styles.windowEmptyInner}>
-              <div className={styles.windowEmptyIcon}>
+        <Box sx={s.chatWindow(false)}>
+          <Box sx={s.windowEmpty}>
+            <Box sx={s.windowEmptyInner}>
+              <Box sx={s.windowEmptyIcon}>
                 <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
-              </div>
-              <div className={styles.windowEmptyTitle}>{t.chat.emptyTitle}</div>
-              <div className={styles.windowEmptySub}>{t.chat.emptySubtitle}</div>
-            </div>
-          </div>
-        </div>
+              </Box>
+              <Box sx={s.windowEmptyTitle}>{t.chat.emptyTitle}</Box>
+              <Box sx={s.windowEmptySub}>{t.chat.emptySubtitle}</Box>
+            </Box>
+          </Box>
+        </Box>
       )}
 
       {confirmType && (
-        <div className={styles.confirmOverlay}>
-          <div className={styles.confirmBox}>
-            <div className={styles.confirmTitle}>{confirmTitle}</div>
-            <div className={styles.confirmMessage}>{confirmMessage}</div>
-            <div className={styles.confirmActions}>
-              <button
+        <Box sx={s.confirmOverlay}>
+          <Box sx={s.confirmBox}>
+            <Box sx={s.confirmTitle}>{confirmTitle}</Box>
+            <Box sx={s.confirmMessage}>{confirmMessage}</Box>
+            <Box sx={s.confirmActions}>
+              <Box
+                component="button"
                 type="button"
-                className={styles.confirmCancel}
+                sx={s.confirmCancel}
                 onClick={function () { setConfirmType(''); setKickMember(null) }}
               >
                 {t.chat.cancel}
-              </button>
-              <button
+              </Box>
+              <Box
+                component="button"
                 type="button"
-                className={styles.confirmOk}
+                sx={s.confirmOk}
                 onClick={handleConfirmOk}
               >
                 {confirmOkText}
-              </button>
-            </div>
-          </div>
-        </div>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
       )}
-    </div>
+    </Box>
   )
 }

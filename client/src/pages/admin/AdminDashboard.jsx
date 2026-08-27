@@ -1,11 +1,17 @@
+// pages/admin/AdminDashboard.jsx
+// Trang tổng quan admin — 4 thẻ thống kê + khối liên kết nhanh
+
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
 import { useAuth } from '../../hooks/useAuth'
 import { useLanguage } from '../../i18n/LanguageContext'
 import api from '../../services/api'
 import Icon from '../../components/common/Icon'
 import Spinner from '../../components/common/Spinner'
-import styles from './AdminShared.module.css'
+import * as s from './adminStyles'
 
 export default function AdminDashboard() {
   var { user } = useAuth()
@@ -18,6 +24,7 @@ export default function AdminDashboard() {
   if (isLoading) return <Spinner fullPage />
 
   var stats = data?.stats || data || {}
+  // Backend từng đổi hình dạng response nên đọc cả 2 kiểu key cho chắc
   var cards = [
     { label: t.admin.dashboard.totalUsers, value: stats.users?.total ?? stats.totalUsers ?? 0, icon: 'user', color: '#1d4ed8' },
     { label: t.admin.dashboard.totalPosts, value: stats.content?.posts ?? stats.totalPosts ?? 0, icon: 'image', color: '#be185d' },
@@ -26,33 +33,45 @@ export default function AdminDashboard() {
   ]
 
   return (
-    <div className={styles.page}>
-      <div className={styles.pageHeader}>
-        <div>
-          <h2>{t.admin.dashboard.title}</h2>
-          <p>{t.admin.dashboard.subtitle}</p>
-        </div>
-      </div>
+    <Box sx={s.page}>
+      <Box sx={s.pageHeader}>
+        <Box>
+          <Typography component="h2" sx={s.pageTitle}>{t.admin.dashboard.title}</Typography>
+          <Typography sx={s.pageSubtitle}>{t.admin.dashboard.subtitle}</Typography>
+        </Box>
+      </Box>
 
-      <section className={styles.cardsGrid}>
+      <Box component="section" sx={s.cardsGrid}>
         {cards.map(function (card) {
           return (
-            <article key={card.label} className={styles.statCard}>
-              <span>{card.label}</span>
-              <div className={styles.statIcon} style={{ color: card.color }}><Icon name={card.icon} size={22} /></div>
-              <strong style={{ color: card.color }}>{card.value.toLocaleString()}</strong>
-            </article>
+            <Box component="article" key={card.label} sx={s.statCard}>
+              <Typography component="span" sx={s.statLabel}>{card.label}</Typography>
+              <Box sx={{ ...s.statIcon, color: card.color }}>
+                <Icon name={card.icon} size={22} />
+              </Box>
+              <Typography component="strong" sx={{ ...s.statValue, color: card.color }}>
+                {card.value.toLocaleString()}
+              </Typography>
+            </Box>
           )
         })}
-      </section>
+      </Box>
 
-      <section className={styles.quickPanel}>
-        <h3>{t.admin.dashboard.quickLinks}</h3>
-        <div className={styles.quickLinks}>
-          {user?.role === 'super_admin' && <Link to="/admin/users">{t.admin.dashboard.manageUsers}</Link>}
-          <Link to="/admin/reports">{t.admin.dashboard.manageReports}</Link>
-        </div>
-      </section>
-    </div>
+      <Box component="section" sx={s.quickPanel}>
+        <Typography component="h3" sx={{ m: 0, mb: 1.5, fontSize: 16, fontWeight: 800, color: s.adminColors.ink }}>
+          {t.admin.dashboard.quickLinks}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          {user?.role === 'super_admin' && (
+            <Link component={RouterLink} to="/admin/users" sx={{ fontWeight: 700 }}>
+              {t.admin.dashboard.manageUsers}
+            </Link>
+          )}
+          <Link component={RouterLink} to="/admin/reports" sx={{ fontWeight: 700 }}>
+            {t.admin.dashboard.manageReports}
+          </Link>
+        </Box>
+      </Box>
+    </Box>
   )
 }

@@ -1,15 +1,36 @@
+// pages/admin/AdminVerifications.jsx
+// Duyệt yêu cầu cấp tích xanh — duyệt, từ chối, và thu hồi tích đã cấp
+
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Badge, Pagination } from 'react-bootstrap'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import Chip from '@mui/material/Chip'
+import Pagination from '@mui/material/Pagination'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Avatar from '../../components/common/Avatar'
 import Spinner from '../../components/common/Spinner'
+import Button from '../../components/common/Button'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTime } from '../../utils/formatTime'
 import { goAdmin } from '../../utils/adminNavigation'
 import { getVerificationRequests, handleVerificationRequest, revokeVerification } from '../../features/verification/verificationAPI'
-import styles from './AdminReports.module.css'
+import * as s from './adminStyles'
+
+// Màu Chip theo trạng thái yêu cầu
+function statusColor(status) {
+  if (status === 'pending') return 'warning'
+  if (status === 'approved') return 'success'
+  return 'default'
+}
 
 export default function AdminVerifications() {
   var navigate = useNavigate()
@@ -53,103 +74,152 @@ export default function AdminVerifications() {
     },
   })
 
-  return (
-    <div className={styles.page}>
-      <div className={styles.pageHeader}>
-        <div><h2>{t.admin.verifications.title}</h2><p>{t.admin.verifications.listDescription}</p></div>
-      </div>
+  function handleFilterChange(_, value) {
+    if (!value) return
+    setStatusFilter(value)
+    setPage(1)
+  }
 
-      <div className={styles.filters} role="group">
+  // Thu hồi tích xanh: bắt buộc nhập lý do để còn ghi vào nhật ký admin
+  function handleRevoke(userId) {
+    var reason = window.prompt(t.admin.verifications.revokeReasonPrompt)
+    if (reason === null) return // bấm Hủy
+    if (!reason.trim()) {
+      toast.error(t.admin.verifications.revokeReasonRequired)
+      return
+    }
+    revokeMutation.mutate({ userId: userId, reason: reason.trim() })
+  }
+
+  return (
+    <Box sx={s.page}>
+      <Box sx={s.pageHeader}>
+        <Box>
+          <Typography component="h2" sx={s.pageTitle}>{t.admin.verifications.title}</Typography>
+          <Typography sx={s.pageSubtitle}>{t.admin.verifications.listDescription}</Typography>
+        </Box>
+      </Box>
+
+      <ToggleButtonGroup exclusive value={statusFilter} onChange={handleFilterChange} sx={s.filterBar}>
         {filters.map(function (filter) {
           return (
-            <button
-              key={filter.key}
-              type="button"
-              className={statusFilter === filter.key ? styles.filterActive : ''}
-              onClick={function () { setStatusFilter(filter.key); setPage(1) }}
-            >
+            <ToggleButton key={filter.key} value={filter.key} sx={{ px: 2.125, fontWeight: 800 }}>
               {filter.label}
-            </button>
+            </ToggleButton>
           )
         })}
-      </div>
+      </ToggleButtonGroup>
 
-      {requestsQuery.isLoading ? <Spinner fullPage /> : requestsQuery.isError ? (
-        <div className={styles.empty}>{t.admin.verifications.loadFailed}</div>
+      {requestsQuery.isLoading ? (
+        <Spinner fullPage />
+      ) : requestsQuery.isError ? (
+        <Box sx={s.empty}>{t.admin.verifications.loadFailed}</Box>
       ) : requests.length === 0 ? (
-        <div className={styles.empty}>{t.admin.verifications.noRequests}</div>
+        <Box sx={s.empty}>{t.admin.verifications.noRequests}</Box>
       ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{t.admin.verifications.colUser}</th>
-                <th>{t.admin.verifications.colReason}</th>
-                <th>{t.admin.verifications.colStatus}</th>
-                <th>{t.admin.verifications.colDate}</th>
-                <th>{t.admin.verifications.colActions}</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Box sx={s.tableWrap}>
+          <Table sx={s.table}>
+            <TableHead>
+              <TableRow>
+                <TableCell>{t.admin.verifications.colUser}</TableCell>
+                <TableCell>{t.admin.verifications.colReason}</TableCell>
+                <TableCell>{t.admin.verifications.colStatus}</TableCell>
+                <TableCell>{t.admin.verifications.colDate}</TableCell>
+                <TableCell>{t.admin.verifications.colActions}</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {requests.map(function (req) {
                 var user = req.userId
+                var statusLabel = req.status === 'pending'
+                  ? t.admin.verifications.pending
+                  : req.status === 'approved'
+                    ? t.admin.verifications.approved
+                    : t.admin.verifications.rejected
+
                 return (
-                  <tr key={req._id}>
-                    <td>
-                      <button type="button" className={styles.personButton} disabled={!user?._id} onClick={function () { if (user?._id) goAdmin(navigate, '/admin/users/' + user._id) }}>
+                  <TableRow key={req._id}>
+                    <TableCell>
+                      <Box
+                        component="button"
+                        type="button"
+                        sx={s.personButton}
+                        disabled={!user?._id}
+                        onClick={function () { if (user?._id) goAdmin(navigate, '/admin/users/' + user._id) }}
+                      >
                         <Avatar src={user?.avatarUrl} username={user?.username} size="sm" />
-                        <span><strong>{user?.fullName || user?.username || '—'}</strong><small>@{user?.username || '—'}</small></span>
-                      </button>
-                    </td>
-                    <td className={styles.reasonCell}>{req.reason || '—'}</td>
-                    <td>
-                      <Badge bg={req.status === 'pending' ? 'warning' : req.status === 'approved' ? 'success' : 'secondary'}>
-                        {req.status === 'pending' ? t.admin.verifications.pending : req.status === 'approved' ? t.admin.verifications.approved : t.admin.verifications.rejected}
-                      </Badge>
-                    </td>
-                    <td className={styles.date}>{formatDateTime(req.createdAt)}</td>
-                    <td>
+                        <Box component="span">
+                          <strong>{user?.fullName || user?.username || '—'}</strong>
+                          <small>@{user?.username || '—'}</small>
+                        </Box>
+                      </Box>
+                    </TableCell>
+
+                    <TableCell sx={{ maxWidth: 280 }}>{req.reason || '—'}</TableCell>
+
+                    <TableCell>
+                      <Chip size="small" color={statusColor(req.status)} label={statusLabel} />
+                    </TableCell>
+
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDateTime(req.createdAt)}</TableCell>
+
+                    <TableCell>
                       {req.status === 'pending' ? (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button type="button" className={styles.approveBtn} disabled={actionMutation.isPending} onClick={function () { actionMutation.mutate({ id: req._id, action: 'approve' }) }}>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button
+                            size="sm"
+                            variant="success"
+                            loading={actionMutation.isPending}
+                            onClick={function () { actionMutation.mutate({ id: req._id, action: 'approve' }) }}
+                          >
                             {t.admin.verifications.approve}
-                          </button>
-                          <button type="button" className={styles.rejectBtn} disabled={actionMutation.isPending} onClick={function () { actionMutation.mutate({ id: req._id, action: 'reject' }) }}>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline-danger"
+                            loading={actionMutation.isPending}
+                            onClick={function () { actionMutation.mutate({ id: req._id, action: 'reject' }) }}
+                          >
                             {t.admin.verifications.reject}
-                          </button>
-                        </div>
+                          </Button>
+                        </Box>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <small className={styles.date}>{req.reviewedBy?.username ? '@' + req.reviewedBy.username : '—'}</small>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                          <Typography component="small" sx={{ color: s.adminColors.muted, fontSize: 12 }}>
+                            {req.reviewedBy?.username ? '@' + req.reviewedBy.username : '—'}
+                          </Typography>
                           {/* Thu hồi tích xanh — chỉ hiện khi đã duyệt và user vẫn còn tích */}
                           {req.status === 'approved' && user?.isTrusted && (
-                            <button type="button" className={styles.rejectBtn} disabled={revokeMutation.isPending} onClick={function () {
-                              var reason = window.prompt(t.admin.verifications.revokeReasonPrompt)
-                              if (reason === null) return // bấm Hủy
-                              if (!reason.trim()) { toast.error(t.admin.verifications.revokeReasonRequired); return }
-                              revokeMutation.mutate({ userId: user._id, reason: reason.trim() })
-                            }}>
+                            <Button
+                              size="sm"
+                              variant="outline-danger"
+                              loading={revokeMutation.isPending}
+                              onClick={function () { handleRevoke(user._id) }}
+                            >
                               {t.admin.verifications.revoke}
-                            </button>
+                            </Button>
                           )}
-                        </div>
+                        </Box>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Box>
       )}
 
       {totalPages > 1 && (
-        <Pagination className={styles.pagination}>
-          <Pagination.Prev disabled={page <= 1} onClick={function () { setPage(function (v) { return v - 1 }) }} />
-          <Pagination.Item active>{page} / {totalPages}</Pagination.Item>
-          <Pagination.Next disabled={page >= totalPages} onClick={function () { setPage(function (v) { return v + 1 }) }} />
-        </Pagination>
+        <Box sx={s.paginationRow}>
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={function (_, value) { setPage(value) }}
+            color="primary"
+          />
+        </Box>
       )}
-    </div>
+    </Box>
   )
 }

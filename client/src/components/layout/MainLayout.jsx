@@ -10,7 +10,8 @@ import Sidebar from './Sidebar'
 import MobileNav from './MobileNav'
 import MiniChat from '../chat/MiniChat'
 import StoryPortal from '../story/StoryPortal'
-import styles from './Layout.module.css'
+import Box from '@mui/material/Box'
+import * as s from './layoutStyles'
 
 export default function MainLayout() {
   var { user } = useAuth()
@@ -22,17 +23,17 @@ export default function MainLayout() {
   }
 
   return (
-    <div className={styles.appLayout}>
+    <Box sx={s.appLayout}>
       <Sidebar />
       {/* Lớp 3 (Page) render vào đây */}
-      <main className={styles.mainContent}>
+      <Box component="main" sx={s.mainContent}>
         <Outlet />
-      </main>
+      </Box>
       {/* StoryPortal: nhận event story:open từ bất kỳ trang nào, render modal */}
       <StoryPortal />
       <MobileNav />
       {/* Widget chat nhỏ góc dưới phải — ẩn tự động trên trang /chat và mobile */}
       <MiniChat />
-    </div>
+    </Box>
   )
 }

@@ -9,15 +9,20 @@
 
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
-import { Form } from 'react-bootstrap'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
+import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined'
 import { useAuth } from '../../hooks/useAuth'
 import { forgotPassword as forgotPasswordAPI } from '../../features/auth/authAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Button from '../../components/common/Button'
 import { Wordmark } from '../../components/common/Icon'
-import styles from './Auth.module.css'
+import AuthBackground from '../../components/auth/AuthBackground'
+import * as s from './authStyles'
 
 export default function ForgotPassword() {
   const { isAuthenticated } = useAuth()
@@ -50,88 +55,87 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className={styles.splitPanel}>
-      {/* Left — gradient branding panel (không dùng ảnh) */}
-      <div className={`${styles.imageSide} ${styles.gradientSide}`}>
-        <div className={styles.imageBranding}>
-          <div style={{ marginBottom: 20 }}><Wordmark size={40} color="#fff" /></div>
-          <h1>Forgot your<br />password?</h1>
-          <p>No worries — we&apos;ll send you a secure link to reset it and get you back in.</p>
-        </div>
-      </div>
+    <Box sx={s.splitPanel}>
+      {/* Cột trái — dùng chung nền động với trang đăng nhập cho đồng bộ */}
+      <Box sx={s.imageSide}>
+        <AuthBackground>
+          <Box sx={{ mb: 2.5 }}><Wordmark size={40} color="#fff" /></Box>
+          <Typography component="h1" sx={s.brandingTitle}>
+            Forgot your<br />password?
+          </Typography>
+          <Typography sx={s.brandingDesc}>
+            No worries — we&apos;ll send you a secure link to reset it and get you back in.
+          </Typography>
+        </AuthBackground>
+      </Box>
 
-      {/* Right — form panel */}
-      <div className={styles.formSide}>
-        <div className={styles.formSideInner}>
-          {/* Logo chỉ hiện trên mobile (panel ảnh bị ẩn) */}
-          <div className="d-flex d-md-none justify-content-center mb-4">
+      {/* Cột phải — form */}
+      <Box sx={s.formSide}>
+        <Box sx={s.formSideInner}>
+          {/* Logo chỉ hiện trên mobile, lúc đó cột gradient đã bị ẩn */}
+          <Box sx={{ display: 'none', justifyContent: 'center', mb: 3, [s.MOBILE]: { display: 'flex' } }}>
             <Wordmark size={32} color="#fff" />
-          </div>
+          </Box>
 
           {sent ? (
             // Trạng thái đã gửi — không lộ email có tồn tại hay không
-            <div style={{ textAlign: 'center' }}>
-              <div className={styles.sentIcon} aria-hidden="true">
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                  <polyline points="22,6 12,13 2,6" />
-                </svg>
-              </div>
-              <h2 style={{ fontWeight: 700, fontSize: 22, marginBottom: 8 }}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Box sx={s.sentIcon} aria-hidden="true">
+                <EmailOutlinedIcon sx={{ fontSize: 30 }} />
+              </Box>
+              <Typography component="h2" sx={{ fontWeight: 700, fontSize: 22, mb: 1 }}>
                 {t.auth.forgotPassword.checkEmail}
-              </h2>
-              <p style={{ color: 'var(--ink-muted)', fontSize: 14, marginBottom: 28, lineHeight: 1.6 }}>
+              </Typography>
+              <Typography sx={{ color: 'text.secondary', fontSize: 14, mb: 3.5, lineHeight: 1.6 }}>
                 {t.auth.forgotPassword.sentMessage}
-              </p>
-              <Link to="/login" className="w-100" style={{ display: 'block' }}>
-                <Button type="button" className="btn-primary w-100">
-                  {t.auth.forgotPassword.backToLogin}
-                </Button>
-              </Link>
-            </div>
+              </Typography>
+              {/* Nút điều hướng: dùng component={RouterLink} thay vì bọc Button
+                  trong thẻ Link, tránh lồng thẻ <a> quanh <button> */}
+              <Button component={RouterLink} to="/login" fullWidth>
+                {t.auth.forgotPassword.backToLogin}
+              </Button>
+            </Box>
           ) : (
             // Form nhập email
             <>
-              <h2 style={{ fontWeight: 700, fontSize: 24, marginBottom: 6 }}>
+              <Typography component="h2" sx={s.pageTitle}>
                 {t.auth.forgotPassword.title}
-              </h2>
-              <p style={{ color: 'var(--ink-muted)', fontSize: 14, marginBottom: 28, lineHeight: 1.6 }}>
+              </Typography>
+              <Typography sx={{ ...s.pageDesc, lineHeight: 1.6 }}>
                 {t.auth.forgotPassword.description}
-              </p>
+              </Typography>
 
-              <Form onSubmit={handleSubmit(onSubmit)}>
-                <Form.Group className="mb-3">
-                  <Form.Label style={{ fontWeight: 500, fontSize: 14 }}>
-                    {t.auth.forgotPassword.emailLabel}
-                  </Form.Label>
-                  <Form.Control
-                    type="email"
-                    placeholder={t.auth.forgotPassword.emailPlaceholder}
-                    {...register('email', {
-                      required: t.auth.forgotPassword.emailRequired,
-                      pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t.auth.forgotPassword.emailInvalid },
-                    })}
-                    isInvalid={!!errors.email}
-                  />
-                  <Form.Control.Feedback type="invalid">
-                    {errors.email?.message}
-                  </Form.Control.Feedback>
-                </Form.Group>
+              <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+                <TextField
+                  label={t.auth.forgotPassword.emailLabel}
+                  type="email"
+                  placeholder={t.auth.forgotPassword.emailPlaceholder}
+                  fullWidth
+                  margin="dense"
+                  slotProps={s.shrinkLabel}
+                  {...register('email', {
+                    required: t.auth.forgotPassword.emailRequired,
+                    pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: t.auth.forgotPassword.emailInvalid },
+                  })}
+                  error={!!errors.email}
+                  helperText={errors.email?.message}
+                  sx={{ mb: 2 }}
+                />
 
-                <Button type="submit" className="btn-primary w-100" loading={isSubmitting}>
+                <Button type="submit" fullWidth loading={isSubmitting}>
                   {t.auth.forgotPassword.button}
                 </Button>
-              </Form>
+              </Box>
 
-              <p style={{ textAlign: 'center', marginTop: 24, fontSize: 14, color: 'var(--ink-muted)' }}>
-                <Link to="/login" style={{ color: 'var(--accent)', fontWeight: 600 }}>
+              <Typography sx={{ textAlign: 'center', mt: 3, fontSize: 14, color: 'text.secondary' }}>
+                <Link component={RouterLink} to="/login" sx={{ fontWeight: 600 }}>
                   {t.auth.forgotPassword.backToLogin}
                 </Link>
-              </p>
+              </Typography>
             </>
           )}
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   )
 }

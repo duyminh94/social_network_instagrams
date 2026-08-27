@@ -9,10 +9,12 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import { useAuth } from '../../hooks/useAuth'
 import { useLanguage } from '../../i18n/LanguageContext'
 import VerificationModal from '../../components/common/VerificationModal'
-import styles from './EditProfile.module.css'
+import * as s from './settingsStyles'
 
 export default function SettingsSidebar({ active }) {
   const navigate = useNavigate()
@@ -22,33 +24,28 @@ export default function SettingsSidebar({ active }) {
 
   const username = user?.username
 
-  // Gắn class active cho đúng mục đang mở
-  function itemClass(key) {
-    return active === key ? `${styles.navItem} ${styles.active}` : styles.navItem
-  }
-
   return (
     <>
-      <aside className={styles.sidebar}>
-        <div className={styles.sidebarTitle}>{t.editProfile.settings}</div>
+      <Box component="aside" sx={s.sidebar}>
+        <Typography sx={s.sidebarTitle}>{t.editProfile.settings}</Typography>
 
-        <button type="button" className={itemClass('edit')} onClick={() => navigate('/' + username + '/edit')}>
+        <Box component="button" type="button" sx={s.navItem(active === 'edit')} onClick={() => navigate('/' + username + '/edit')}>
           {t.editProfile.sidebarEdit}
-        </button>
+        </Box>
 
-        <button type="button" className={itemClass('password')} onClick={() => navigate('/' + username + '/change-password')}>
+        <Box component="button" type="button" sx={s.navItem(active === 'password')} onClick={() => navigate('/' + username + '/change-password')}>
           {t.editProfile.changePassword}
-        </button>
+        </Box>
 
-        <button type="button" className={itemClass('blocked')} onClick={() => navigate('/' + username + '/blocked')}>
+        <Box component="button" type="button" sx={s.navItem(active === 'blocked')} onClick={() => navigate('/' + username + '/blocked')}>
           {t.editProfile.blockedAccounts}
-        </button>
+        </Box>
 
         {/* Luôn hiện: chưa có tích xanh → "Xin cấp tích xanh"; đã có → "Tài khoản đã xác minh" */}
-        <button type="button" className={styles.navItem} onClick={() => setShowVerifyModal(true)}>
+        <Box component="button" type="button" sx={s.navItem(false)} onClick={() => setShowVerifyModal(true)}>
           {user?.isTrusted ? (t.userCard?.verified || 'Tài khoản đã xác minh') : t.profile.verifyRequest}
-        </button>
-      </aside>
+        </Box>
+      </Box>
 
       {showVerifyModal && (
         <VerificationModal onClose={() => setShowVerifyModal(false)} />

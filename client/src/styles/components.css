@@ -1,39 +1,8 @@
-.avatar { border-radius: 50%; object-fit: cover; flex-shrink: 0; }
-.avatar-sm  { width: 32px;  height: 32px; }
-.avatar-md  { width: 44px;  height: 44px; }
-.avatar-lg  { width: 56px;  height: 56px; }
-.avatar-xl  { width: 80px;  height: 80px; }
-.avatar-xxl { width: 150px; height: 150px; }
-
-.avatar-story {
-  padding: 2.5px;
-  background: conic-gradient(from 200deg, #3897f0, #ffd166, #ff6b58, #c084fc, #60a5fa, #3897f0);
-  border-radius: 50%;
-  display: inline-block;
-}
-.avatar-story img { border: 2px solid #0e0e10; border-radius: 50%; }
-/* Ring đã xem: xám đặc rõ ràng (trước đây trắng 18% nên mờ tịt trên nền tối) */
-.avatar-story.seen { background: #6e6e76; }
-
-/* Online status dot */
-.avatar-online-wrap {
-  position: relative;
-  display: inline-flex;
-  flex-shrink: 0;
-}
-.avatar-online-dot {
-  position: absolute;
-  bottom: 1px;
-  right: 1px;
-  background: #3fc060;
-  border-radius: 50%;
-  border: 2px solid #0e0e10;
-}
-.avatar-online-sm  .avatar-online-dot { width: 10px; height: 10px; }
-.avatar-online-md  .avatar-online-dot { width: 13px; height: 13px; }
-.avatar-online-lg  .avatar-online-dot { width: 15px; height: 15px; }
-.avatar-online-xl  .avatar-online-dot { width: 18px; height: 18px; }
-.avatar-online-xxl .avatar-online-dot { width: 22px; height: 22px; }
+/* components.css — class dùng chung còn lại sau khi chuyển sang MUI
+   Đã bỏ:
+     .avatar*   → component Avatar tự lo bằng MUI
+     .spinner-ig → component Spinner dùng CircularProgress
+     .skeleton, .text-ig-*, .cursor-pointer, .fw-semibold → không file nào gọi */
 
 .btn-icon {
   background: none; border: none; padding: 6px; cursor: pointer;
@@ -41,24 +10,3 @@
   justify-content: center; transition: opacity 0.2s; color: var(--ig-text);
 }
 .btn-icon:hover { opacity: 0.6; }
-
-.spinner-ig {
-  width: 24px; height: 24px;
-  border: 2px solid rgba(255,255,255,.15);
-  border-top-color: var(--ig-text);
-  border-radius: 50%;
-  animation: igSpin 0.8s linear infinite;
-}
-
-.skeleton {
-  background: linear-gradient(90deg, #1e1e22 25%, #2a2a30 50%, #1e1e22 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 4px;
-}
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-.text-ig-light   { color: var(--ig-text-light); }
-.text-ig-primary { color: var(--ig-primary); }
-.cursor-pointer  { cursor: pointer; }
-.fw-semibold     { font-weight: 600; }

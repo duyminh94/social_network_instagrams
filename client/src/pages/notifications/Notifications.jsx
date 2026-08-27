@@ -13,11 +13,13 @@ import {
 } from '../../features/notification/notificationAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Avatar from '../../components/common/Avatar'
-import Spinner from '../../components/common/Spinner'
+import { ListSkeleton } from '../../components/common/Skeletons'
 import { timeAgo } from '../../utils/formatTime'
 import { useSocket } from '../../hooks/useSocket'
 import api from '../../services/api'
-import styles from './Notifications.module.css'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import makeStyles, { tabSx, notificationTextSx } from './notificationStyles'
 
 function HeartIcon() {
   return (
@@ -245,152 +247,171 @@ export default function Notifications({ isPanel = false, onClose }) {
     }
   }
 
-  return (
-    <div className={styles.page + (isPanel ? ' ' + styles.panelPage : '')}>
-      <div className={styles.header}>
-        <h1>{t.notifications.title}</h1>
-        <button className={styles.closeBtn} type="button" onClick={handleClose}>
-          <CloseIcon />
-        </button>
-      </div>
+  // Bộ sx đổi theo chế độ hiển thị: trang đầy đủ hay panel hẹp
+  var s = makeStyles(isPanel)
 
-      <div className={styles.tabs}>
+  return (
+    <Box sx={s.page}>
+      <Box sx={s.header}>
+        <Typography component="h1" sx={s.headerTitle}>{t.notifications.title}</Typography>
+        <Box component="button" sx={s.closeBtn} type="button" onClick={handleClose}>
+          <CloseIcon />
+        </Box>
+      </Box>
+
+      <Box sx={s.tabs}>
         {tabs.map(function (tab) {
           return (
-            <button
+            <Box
+              component="button"
               key={tab.key}
               type="button"
-              className={styles.tab + (activeTab === tab.key ? ' ' + styles.tabActive : '')}
+              sx={tabSx(isPanel, activeTab === tab.key)}
               onClick={function () { setActiveTab(tab.key) }}
             >
               {tab.label}
-            </button>
+            </Box>
           )
         })}
-      </div>
+      </Box>
 
       {notifications.some(function (n) { return !n.isRead }) && (
-        <button
-          className={styles.markAllBtn}
+        <Box
+          component="button"
+          sx={s.markAllBtn}
           type="button"
           disabled={markAllMutation.isPending}
           onClick={function () { markAllMutation.mutate() }}
         >
           {t.notifications.markAllRead}
-        </button>
+        </Box>
       )}
 
-      {isLoading && <Spinner />}
+      {isLoading && <ListSkeleton avatarSize={48} />}
 
       {!isLoading && filteredNotifications.length > 0 && (
-        <section className={styles.notificationSection}>
-          <h2>{currentMonthLabel}</h2>
+        <Box component="section">
+          <Typography component="h2" sx={s.sectionTitle}>{currentMonthLabel}</Typography>
           {filteredNotifications.map(function (notif) {
             var senderId = notif.senderId?._id || notif.senderId
             var isRequest = notif.type === 'follow_request'
             var requestStatus = handledRequests[senderId]
 
             return (
-              <div
+              <Box
                 key={notif._id}
-                className={styles.notificationItem + (!notif.isRead ? ' ' + styles.unread : '')}
+                sx={s.notificationItem}
                 onClick={function () { handleClick(notif) }}
-                style={{ cursor: 'pointer' }}
               >
                 <Avatar src={notif.senderId?.avatarUrl} username={notif.senderId?.username || 'IG'} size="md" />
-                <div className={styles.notificationText}>
-                  <span className={styles.username}>{notif.senderId?.username || 'Instagram'}</span>
-                  <span> {notifText(notif, t)} </span>
-                  <span className={styles.time}>{timeAgo(notif.createdAt)}</span>
-                </div>
+                <Box sx={notificationTextSx(isPanel, !notif.isRead)}>
+                  <Box component="span" className="notifUsername">{notif.senderId?.username || 'Instagram'}</Box>
+                  <Box component="span"> {notifText(notif, t)} </Box>
+                  <Box component="span" className="notifTime">{timeAgo(notif.createdAt)}</Box>
+                </Box>
 
                 {isRequest && !requestStatus && (
-                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }} onClick={function (e) { e.stopPropagation() }}>
-                    <button
+                  <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }} onClick={function (e) { e.stopPropagation() }}>
+                    <Box
+                      component="button"
                       type="button"
-                      style={{
-                        padding: '6px 14px', borderRadius: 8, border: 'none',
-                        background: 'var(--accent)', color: '#fff',
-                        fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                      sx={{
+                        px: 1.75, py: .75,
+                        borderRadius: 2,
+                        border: 'none',
+                        bgcolor: 'primary.main',
+                        color: '#fff',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: 'pointer',
                       }}
                       disabled={acceptMutation.isPending || rejectMutation.isPending}
                       onClick={function () { acceptMutation.mutate(senderId) }}
                     >
                       {t.common.accept}
-                    </button>
-                    <button
+                    </Box>
+                    <Box
+                      component="button"
                       type="button"
-                      style={{
-                        padding: '6px 14px', borderRadius: 8,
-                        border: '1px solid var(--border)', background: 'var(--bg-elevated)',
-                        color: 'var(--ink)', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                      sx={{
+                        px: 1.75, py: .75,
+                        borderRadius: 2,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        bgcolor: 'background.paper',
+                        color: 'text.primary',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: 'pointer',
                       }}
                       disabled={acceptMutation.isPending || rejectMutation.isPending}
                       onClick={function () { rejectMutation.mutate(senderId) }}
                     >
                       {t.common.decline}
-                    </button>
-                  </div>
+                    </Box>
+                  </Box>
                 )}
 
                 {isRequest && requestStatus === 'accepted' && (
-                  <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>{t.notifications.accepted}</span>
+                  <Box component="span" sx={{ fontSize: 13, color: 'primary.main', fontWeight: 600, flexShrink: 0 }}>{t.notifications.accepted}</Box>
                 )}
                 {isRequest && requestStatus === 'rejected' && (
-                  <span style={{ fontSize: 13, color: 'var(--ink-muted)', flexShrink: 0 }}>{t.notifications.rejected}</span>
+                  <Box component="span" sx={{ fontSize: 13, color: 'text.secondary', flexShrink: 0 }}>{t.notifications.rejected}</Box>
                 )}
 
                 {!isRequest && notif.post?.mediaUrl && (
-                  <img src={notif.post.mediaUrl} alt="" className={styles.postThumb} />
+                  <Box component="img" src={notif.post.mediaUrl} alt="" sx={s.postThumb} />
                 )}
-                <button
+                <Box
+                  component="button"
                   type="button"
-                  className={styles.deleteBtn}
+                  sx={s.deleteBtn}
                   onClick={function (e) { e.stopPropagation(); deleteMutation.mutate(notif._id) }}
                 >
                   ✕
-                </button>
-              </div>
+                </Box>
+              </Box>
             )
           })}
-        </section>
+        </Box>
       )}
 
       {!isLoading && activeTab === 'all' && filteredNotifications.length === 0 && (
-        <section className={styles.notificationSection}>
-          <h2>{t.notifications.thisMonth}</h2>
-          <div className={styles.securityItem}>
-            <div className={styles.securityIcon}>
+        <Box component="section">
+          <Typography component="h2" sx={s.sectionTitle}>{t.notifications.thisMonth}</Typography>
+          <Box sx={s.securityItem}>
+            <Box sx={s.securityIcon}>
               <SecurityIcon />
-            </div>
-            <p>
+            </Box>
+            <Typography component="p" sx={s.securityText}>
               Ai đó đang cố đăng nhập vào Instagram. Hãy cho chúng tôi biết nếu đó là bạn.
               <span> May 08</span>
-            </p>
-          </div>
-        </section>
+            </Typography>
+          </Box>
+        </Box>
       )}
 
       {!isLoading && activeTab !== 'all' && filteredNotifications.length === 0 && (
-        <section className={styles.emptyCard}>
-          <div className={styles.emptyIcon}><HeartIcon /></div>
-          <h2>{t.notifications.emptyTitle}</h2>
-          <p>{t.notifications.emptyDesc}</p>
-        </section>
+        <Box component="section" sx={s.emptyCard}>
+          <Box sx={s.emptyIcon}><HeartIcon /></Box>
+          <Typography component="h2" sx={s.emptyTitle}>{t.notifications.emptyTitle}</Typography>
+          <Typography component="p" sx={s.emptyDesc}>{t.notifications.emptyDesc}</Typography>
+        </Box>
       )}
 
       {activeTab === 'follow' && (
-        <section className={styles.suggestions}>
-          <h2>{t.notifications.suggestionsTitle}</h2>
+        <Box component="section" sx={s.suggestions}>
+          <Typography component="h2" sx={s.sectionTitle}>{t.notifications.suggestionsTitle}</Typography>
           {suggestions.length === 0 ? (
-            <div className={styles.suggestionEmpty}>{t.notifications.noSuggestions}</div>
+            <Box sx={s.suggestionEmpty}>{t.notifications.noSuggestions}</Box>
           ) : (
             suggestions.map(function (u) {
               return (
-                <div key={u._id} className={styles.suggestionItem}>
-                  <button
+                <Box key={u._id} sx={s.suggestionItem}>
+                  <Box
+                    component="button"
                     type="button"
-                    className={styles.suggestionProfile}
+                    sx={s.suggestionProfile}
                     onClick={function () {
                       navigate('/' + u.username)
                       if (isPanel && onClose) onClose()
@@ -402,21 +423,22 @@ export default function Notifications({ isPanel = false, onClose }) {
                       <small>{u.fullName || t.notifications.suggestionReason}</small>
                       <small>{t.notifications.suggestionReason}</small>
                     </span>
-                  </button>
-                  <button
+                  </Box>
+                  <Box
+                    component="button"
                     type="button"
-                    className={styles.followBtn}
+                    sx={s.followBtn}
                     onClick={function () { handleFollow(u._id) }}
                     disabled={followMutation.isPending}
                   >
                     {t.notifications.followBtn}
-                  </button>
-                </div>
+                  </Box>
+                </Box>
               )
             })
           )}
-        </section>
+        </Box>
       )}
-    </div>
+    </Box>
   )
 }

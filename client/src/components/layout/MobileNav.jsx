@@ -10,7 +10,8 @@ import { useAuth } from '../../hooks/useAuth'
 import { useSocket } from '../../hooks/useSocket'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Icon from '../common/Icon'
-import styles from './Layout.module.css'
+import Box from '@mui/material/Box'
+import * as s from './layoutStyles'
 
 export default function MobileNav() {
   var navigate = useNavigate()
@@ -34,35 +35,33 @@ export default function MobileNav() {
   ]
 
   return (
-    <nav className={styles.mobileNav}>
+    <Box component="nav" sx={s.mobileNav}>
       {items.map(function (item) {
         return (
-          <button
+          <Box
+            component="button"
+            type="button"
             key={item.path}
-            className={styles.mobileNavItem}
+            sx={s.mobileNavItem(isActive(item.path))}
             onClick={function () { navigate(item.path) }}
-            style={{
-              color: isActive(item.path) ? 'var(--ink)' : 'var(--ink-muted)',
-              fontWeight: isActive(item.path) ? 600 : 400,
-            }}
           >
             {/* Icon với badge thông báo nếu có */}
-            <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <Box component="span" sx={{ position: 'relative', display: 'inline-flex' }}>
               <Icon
                 name={item.icon}
                 size={22}
                 fill={isActive(item.path) && item.icon === 'home'}
               />
               {item.badge > 0 && (
-                <span className={styles.notifBadge}>
+                <Box component="span" key={item.badge} sx={s.notifBadge}>
                   {item.badge > 9 ? '9+' : item.badge}
-                </span>
+                </Box>
               )}
-            </span>
-            <span>{item.label}</span>
-          </button>
+            </Box>
+            <Box component="span">{item.label}</Box>
+          </Box>
         )
       })}
-    </nav>
+    </Box>
   )
 }

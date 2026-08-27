@@ -8,12 +8,15 @@
 //   4. Lỗi → hiện nút gửi lại email
 
 import { useEffect, useState } from 'react'
-import { useSearchParams, useNavigate, Link } from 'react-router-dom'
+import { useSearchParams, useNavigate, Link as RouterLink } from 'react-router-dom'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import api from '../../services/api'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Spinner from '../../components/common/Spinner'
+import Button from '../../components/common/Button'
 import { Wordmark } from '../../components/common/Icon'
-import styles from './Auth.module.css'
+import * as s from './authStyles'
 
 // 4 trạng thái: 'loading' | 'success' | 'already_active' | 'expired'
 export default function VerifyEmail() {
@@ -63,69 +66,61 @@ export default function VerifyEmail() {
   ])
 
   return (
-    <div className={styles.wrapper}>
-      <div style={{ width: '100%', maxWidth: 400, padding: '0 16px' }}>
-        <div className={styles.box}>
-          <div className={styles.logo}><Wordmark size={32} color="#fff" /></div>
+    <Box sx={s.wrapper}>
+      <Box sx={{ width: '100%', maxWidth: 400, px: 2 }}>
+        <Box sx={s.box}>
+          <Box sx={s.logoRow}><Wordmark size={32} color="#fff" /></Box>
 
           {status === 'loading' && (
-            <div style={{ textAlign: 'center' }}>
+            <Box sx={{ textAlign: 'center' }}>
               <Spinner />
-              <p style={{ color: 'var(--ig-text-light)', marginTop: 8 }}>{t.auth.verifyEmail.verifying}</p>
-            </div>
+              <Typography sx={{ color: 'text.secondary', mt: 1 }}>
+                {t.auth.verifyEmail.verifying}
+              </Typography>
+            </Box>
           )}
 
           {status === 'success' && (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-              <p style={{ fontWeight: 600, marginBottom: 8 }}>{message}</p>
-              <p style={{ color: 'var(--ig-text-light)', fontSize: 14, marginBottom: 16 }}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Box sx={{ fontSize: 40, mb: 1.5 }}>✅</Box>
+              <Typography sx={{ fontWeight: 600, mb: 1 }}>{message}</Typography>
+              <Typography sx={{ color: 'text.secondary', fontSize: 14, mb: 2 }}>
                 {t.auth.verifyEmail.redirecting}
-              </p>
-              <Link to="/login" style={{
-                display: 'inline-block', padding: '10px 24px',
-                background: 'var(--accent)', color: '#fff',
-                borderRadius: 8, fontWeight: 600, textDecoration: 'none',
-              }}>
+              </Typography>
+              <Button component={RouterLink} to="/login">
                 {t.auth.verifyEmail.loginNow}
-              </Link>
-            </div>
+              </Button>
+            </Box>
           )}
 
           {/* Tài khoản đã active — token đã dùng rồi */}
           {status === 'already_active' && (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-              <p style={{ fontWeight: 600, marginBottom: 8 }}>{t.auth.verifyEmail.alreadyActive}</p>
-              <p style={{ color: 'var(--ig-text-light)', fontSize: 14, marginBottom: 16 }}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Box sx={{ fontSize: 40, mb: 1.5 }}>✅</Box>
+              <Typography sx={{ fontWeight: 600, mb: 1 }}>
+                {t.auth.verifyEmail.alreadyActive}
+              </Typography>
+              <Typography sx={{ color: 'text.secondary', fontSize: 14, mb: 2 }}>
                 {t.auth.verifyEmail.alreadyActiveDesc}
-              </p>
-              <Link to="/login" style={{
-                display: 'inline-block', padding: '10px 24px',
-                background: 'var(--accent)', color: '#fff',
-                borderRadius: 8, fontWeight: 600, textDecoration: 'none',
-              }}>
+              </Typography>
+              <Button component={RouterLink} to="/login">
                 {t.auth.verifyEmail.loginNow}
-              </Link>
-            </div>
+              </Button>
+            </Box>
           )}
 
           {/* Token hết hạn hoặc sai — cần gửi lại */}
           {status === 'expired' && (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>❌</div>
-              <p style={{ color: 'var(--ig-text-light)', marginBottom: 16 }}>{message}</p>
-              <Link to="/resend-verification" style={{
-                display: 'inline-block', padding: '10px 24px',
-                background: 'var(--accent)', color: '#fff',
-                borderRadius: 8, fontWeight: 600, textDecoration: 'none',
-              }}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Box sx={{ fontSize: 40, mb: 1.5 }}>❌</Box>
+              <Typography sx={{ color: 'text.secondary', mb: 2 }}>{message}</Typography>
+              <Button component={RouterLink} to="/resend-verification">
                 {t.auth.verifyEmail.resend}
-              </Link>
-            </div>
+              </Button>
+            </Box>
           )}
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   )
 }

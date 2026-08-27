@@ -27,7 +27,8 @@ import {
   unlikeStory,
   commentStory,
 } from '../../features/story/storyAPI'
-import styles from './Story.module.css'
+import Box from '@mui/material/Box'
+import * as s from './storyStyles'
 
 function PlayIcon() {
   return (
@@ -412,13 +413,11 @@ export default function StoryViewer({
     if (!item) return null
     var previewMediaUrl = getStoryMediaUrl(item)
     var previewUser = group.user || item.user || item.userId || {}
-    var previewClass = direction === 'left'
-      ? styles.storySidePreview + ' ' + styles.storySidePreviewLeft
-      : styles.storySidePreview + ' ' + styles.storySidePreviewRight
-
     return (
-      <button
-        className={previewClass}
+      <Box
+        component="button"
+        type="button"
+        sx={s.storySidePreview(direction === 'left')}
         onClick={function (e) {
           e.stopPropagation()
           if (direction === 'left') {
@@ -431,13 +430,13 @@ export default function StoryViewer({
       >
         {previewMediaUrl && (
           item.mediaType === 'video' ? (
-            <video src={previewMediaUrl} className={styles.storySideMedia} muted playsInline />
+            <Box component="video" src={previewMediaUrl} sx={s.storySideMedia} muted playsInline />
           ) : (
-            <img src={previewMediaUrl} alt="story preview" className={styles.storySideMedia} />
+            <Box component="img" src={previewMediaUrl} alt="story preview" sx={s.storySideMedia} />
           )
         )}
-        <div className={styles.storySideShade} />
-        <div className={styles.storySideUser}>
+        <Box sx={s.storySideShade} />
+        <Box sx={s.storySideUser}>
           <Avatar
             src={previewUser.avatarUrl || previewUser.avatar}
             username={previewUser.username}
@@ -445,8 +444,8 @@ export default function StoryViewer({
           />
           <strong>{previewUser.username || 'user'}</strong>
           <span>{timeAgo(item.createdAt)}</span>
-        </div>
-      </button>
+        </Box>
+      </Box>
     )
   }
 
@@ -454,7 +453,6 @@ export default function StoryViewer({
 
   var mediaUrl = detailStory.mediaUrl || detailStory.imageUrl || detailStory.media?.url
   var viewers = viewersData?.viewers || []
-  var actionBarClass = isOwn ? styles.storyActions + ' ' + styles.storyActionsOwn : styles.storyActions
   var prevGroup = groupIndex > 0 ? groups[groupIndex - 1] : null
   var nextGroup = groupIndex < groups.length - 1 ? groups[groupIndex + 1] : null
   var disablePrev = groupIndex === 0 && current === 0
@@ -464,10 +462,11 @@ export default function StoryViewer({
   var viewCount = (viewersData?.total != null) ? viewersData.total : (detailStory.viewsCount || 0)
 
   return (
-    <div className={styles.viewer} onClick={handleViewerClick}>
-      <button
+    <Box sx={s.viewer} onClick={handleViewerClick}>
+      <Box
+        component="button"
         type="button"
-        className={styles.viewerLogo}
+        sx={s.viewerLogo}
         onClick={function (e) {
           e.stopPropagation()
           closeViewer()
@@ -475,46 +474,51 @@ export default function StoryViewer({
         title="Đóng story"
       >
         <Wordmark size={28} color="#fff" accent="#ff6b58" />
-      </button>
+      </Box>
 
       {renderSidePreview(prevGroup, 'left')}
       {renderSidePreview(nextGroup, 'right')}
 
-      <button
-        className={styles.storyNavPrev}
+      <Box
+        component="button"
+        type="button"
+        sx={s.storyNav(true)}
         onClick={function (e) { e.stopPropagation(); goPrev() }}
         disabled={disablePrev}
         title={t.story.prevStory}
       >
         <ChevronLeftIcon />
-      </button>
+      </Box>
 
-      <button
-        className={styles.storyNavNext}
+      <Box
+        component="button"
+        type="button"
+        sx={s.storyNav(false)}
         onClick={function (e) { e.stopPropagation(); goNext() }}
         disabled={disableNext}
         title={t.story.nextStory}
       >
         <ChevronRightIcon />
-      </button>
+      </Box>
 
       {/* Nút đóng viewer */}
-      <button
+      <Box
+        component="button"
         type="button"
-        className={styles.closeBtn}
+        sx={s.closeBtn}
         onClick={function (e) { e.stopPropagation(); closeViewer() }}
       >
         ✕
-      </button>
+      </Box>
 
-      <div className={styles.storyFrame}>
+      <Box sx={s.storyFrame}>
         {/* Thanh tiến trình */}
-        <div className={styles.progress}>
+        <Box sx={s.progress}>
           {stories.map(function (_, i) {
             return (
-              <div key={i} className={styles.progressBar}>
-                <div
-                  className={styles.progressFill}
+              <Box key={i} sx={s.progressBar}>
+                <Box
+                  sx={s.progressFill}
                   style={{
                     width: i < current ? '100%' : i === current ? undefined : '0%',
                     animation: i === current ? undefined : 'none',
@@ -522,13 +526,13 @@ export default function StoryViewer({
                   }}
                   key={i === current ? key : i}
                 />
-              </div>
+              </Box>
             )
           })}
-        </div>
+        </Box>
 
         {/* Header: avatar + tên + thời gian */}
-        <div className={styles.viewerHeader}>
+        <Box sx={s.viewerHeader}>
           <Link
             to={'/' + detailStory.user?.username}
             onClick={function (e) { e.stopPropagation(); closeViewer() }}
@@ -539,102 +543,113 @@ export default function StoryViewer({
             {detailStory.user?.isTrusted && <Icon name="verified" size={14} />}
           </Link>
           <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>{timeAgo(detailStory.createdAt)}</span>
-        </div>
+        </Box>
 
-        <button
-          className={styles.playStoryBtn}
+        <Box
+          component="button"
+          type="button"
+          sx={s.playStoryBtn}
           onClick={handleTogglePause}
           title={isPaused ? t.story.play : t.story.pause}
         >
           {isPaused ? <PlayIcon /> : <PauseIcon />}
-        </button>
+        </Box>
 
         {/* Nút xóa — chỉ hiện khi xem story của chính mình */}
         {isOwn && (
-          <button
-            className={styles.deleteStoryBtn}
+          <Box
+            component="button"
+            type="button"
+            sx={s.deleteStoryBtn}
             onClick={function (e) { e.stopPropagation(); setIsDeleteConfirmOpen(true) }}
             title={t.story.deleteBtn}
           >
             🗑
-          </button>
+          </Box>
         )}
 
         {/* Ảnh / video */}
         {mediaUrl && (
           detailStory.mediaType === 'video' ? (
-            <video
+            <Box
+              component="video"
               ref={videoRef}
               src={mediaUrl}
-              className={styles.viewerMedia}
+              sx={s.viewerMedia}
               autoPlay
               muted
               playsInline
               onClick={function (e) { e.stopPropagation() }}
             />
           ) : (
-            <img
+            <Box
+              component="img"
               src={mediaUrl}
               alt="story"
-              className={styles.viewerMedia}
+              sx={s.viewerMedia}
               onClick={function (e) { e.stopPropagation() }}
             />
           )
         )}
 
-        <div className={actionBarClass} onClick={function (e) { e.stopPropagation() }}>
+        <Box sx={s.storyActions(isOwn)} onClick={function (e) { e.stopPropagation() }}>
           {detailStory.allowComments === false ? (
-            <span className={styles.commentsOffNote}>{t.story.commentsOff}</span>
+            <Box component="span" sx={s.commentsOffNote}>{t.story.commentsOff}</Box>
           ) : (
-            <form className={styles.storyCommentForm} onSubmit={handleCommentSubmit}>
-              <input
-                className={styles.storyCommentInput}
+            <Box component="form" sx={s.storyCommentForm} onSubmit={handleCommentSubmit}>
+              <Box
+                component="input"
+                sx={s.storyCommentInput}
                 value={commentText}
                 onChange={function (e) { setCommentText(e.target.value) }}
                 onFocus={function () { setIsPaused(true) }}
                 placeholder={t.story.replyPlaceholder}
                 maxLength={500}
               />
-            </form>
+            </Box>
           )}
 
-          <button
-            className={detailStory.isLiked ? styles.storyLikeBtnActive : styles.storyIconBtn}
+          <Box
+            component="button"
+            type="button"
+            sx={s.storyIconBtn(!!detailStory.isLiked)}
             onClick={handleLikeClick}
             disabled={likeMutation.isPending}
             title={t.story.likeBtn}
           >
             <HeartIcon filled={!!detailStory.isLiked} />
-          </button>
+          </Box>
 
           {!isOwn && (
-            <button
-              className={styles.storyIconBtn}
+            <Box
+              component="button"
+              sx={s.storyIconBtn(false)}
               type="button"
               onClick={function () { setIsPaused(true); setIsReportOpen(true) }}
               title={t.common.report}
             >
               <Icon name="flag" size={23} />
-            </button>
+            </Box>
           )}
 
           {detailStory.allowComments !== false && (
-            <button
-              className={styles.storySendBtn}
+            <Box
+              component="button"
+              sx={s.storyIconBtn(false)}
               type="button"
               onClick={handleCommentSubmit}
               disabled={!commentText.trim() || commentMutation.isPending}
               title={t.story.sendReply}
             >
               <SendIcon />
-            </button>
+            </Box>
           )}
-        </div>
+        </Box>
 
         {/* Thanh người xem ở cuối — chỉ hiện khi xem story của mình */}
         {isOwn && (
-          <div
-            className={styles.viewersBar}
+          <Box
+            sx={s.viewersBar}
             onClick={function (e) {
               e.stopPropagation()
               setIsViewersOpen(function (v) { return !v })
@@ -642,40 +657,42 @@ export default function StoryViewer({
           >
             <span>👁</span>
             <span>{t.story.viewersLabel.replace('{count}', viewCount)}</span>
-          </div>
+          </Box>
         )}
 
         {/* Panel danh sách người xem — slide up từ dưới */}
         {isOwn && isViewersOpen && (
-          <div className={styles.viewersPanel} onClick={function (e) { e.stopPropagation() }}>
-            <div className={styles.viewersPanelHeader}>
+          <Box sx={s.viewersPanel} onClick={function (e) { e.stopPropagation() }}>
+            <Box sx={s.viewersPanelHeader}>
               <span>{t.story.viewersTitle.replace('{count}', viewCount)}</span>
-              <button
-                className={styles.closePanelBtn}
+              <Box
+                component="button"
+                type="button"
+                sx={s.closePanelBtn}
                 onClick={function () { setIsViewersOpen(false) }}
               >
                 ✕
-              </button>
-            </div>
+              </Box>
+            </Box>
 
             {viewers.length === 0 ? (
-              <div className={styles.viewersEmpty}>{t.story.noViewers}</div>
+              <Box sx={s.viewersEmpty}>{t.story.noViewers}</Box>
             ) : (
               viewers.map(function (v) {
                 var viewerUser = v.viewerId || v.viewer
                 return (
-                  <div key={v._id} className={styles.viewerRow}>
+                  <Box key={v._id} sx={s.viewerRow}>
                     <Avatar
                       src={viewerUser?.avatarUrl}
                       username={viewerUser?.username}
                       size="sm"
                     />
-                    <span className={styles.viewerName}>{viewerUser?.username}</span>
-                  </div>
+                    <Box component="span" sx={s.viewerName}>{viewerUser?.username}</Box>
+                  </Box>
                 )
               })
             )}
-          </div>
+          </Box>
         )}
         {isReportOpen && (
           <ReportModal
@@ -687,28 +704,32 @@ export default function StoryViewer({
 
         {/* Confirm dialog xóa story — thay thế window.confirm */}
         {isOwn && isDeleteConfirmOpen && (
-          <div className={styles.confirmOverlay} onClick={function (e) { e.stopPropagation() }}>
-            <div className={styles.confirmDialog}>
-              <p className={styles.confirmText}>{t.story.deleteConfirm}</p>
-              <div className={styles.confirmActions}>
-                <button
-                  className={styles.confirmCancelBtn}
+          <Box sx={s.confirmOverlay} onClick={function (e) { e.stopPropagation() }}>
+            <Box sx={s.confirmDialog}>
+              <Box component="p" sx={s.confirmText}>{t.story.deleteConfirm}</Box>
+              <Box sx={s.confirmActions}>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.confirmCancelBtn}
                   onClick={function () { setIsDeleteConfirmOpen(false) }}
                 >
                   {t.story.cancel}
-                </button>
-                <button
-                  className={styles.confirmDeleteBtn}
+                </Box>
+                <Box
+                  component="button"
+                  type="button"
+                  sx={s.confirmDeleteBtn}
                   onClick={function () { setIsDeleteConfirmOpen(false); deleteMutation.mutate() }}
                   disabled={deleteMutation.isPending}
                 >
                   {deleteMutation.isPending ? t.story.deleting : t.common.delete}
-                </button>
-              </div>
-            </div>
-          </div>
+                </Box>
+              </Box>
+            </Box>
+          </Box>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   )
 }

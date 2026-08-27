@@ -16,7 +16,8 @@ import Spinner from '../common/Spinner'
 import { useDebounce } from '../../hooks/useDebounce'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { formatNumber } from '../../utils/formatNumber'
-import styles from './Layout.module.css'
+import Box from '@mui/material/Box'
+import * as s from './layoutStyles'
 
 const RECENT_KEY = 'instagram_recent_searches'
 
@@ -121,178 +122,193 @@ export default function SearchPanel({ onClose }) {
 
   function renderTagRow(item) {
     return (
-      <button
+      <Box
+        component="button"
         key={item.tag}
         type="button"
-        className={styles.searchUserButton}
+        sx={s.searchUserButton}
         onClick={function () { handleOpenTag(item.tag) }}
       >
-        <span style={{
-          width: 44, height: 44, borderRadius: '50%',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: '1px solid var(--border, #333)', fontSize: 20, flexShrink: 0,
-        }}>#</span>
-        <span className={styles.searchUserText}>
-          <span className={styles.searchUsername}>#{item.tag}</span>
-          <span className={styles.searchFullName}>
+        <Box
+          component="span"
+          sx={{
+            width: 44, height: 44, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid', borderColor: 'divider', fontSize: 20, flexShrink: 0,
+          }}
+        >
+          #
+        </Box>
+        <Box component="span" sx={s.searchUserText}>
+          <Box component="span" className="searchUsername" sx={s.searchUsername}>#{item.tag}</Box>
+          <Box component="span" sx={s.searchFullName}>
             {formatNumber(item.count)} {t.searchPanel.posts}
-          </span>
-        </span>
-      </button>
+          </Box>
+        </Box>
+      </Box>
     )
   }
 
   function renderUserRow(user, isRecent) {
     return (
-      <div key={user._id} className={styles.searchUserRow}>
-        <button
+      <Box key={user._id} sx={s.searchUserRow}>
+        <Box
+          component="button"
           type="button"
-          className={styles.searchUserButton}
+          sx={s.searchUserButton}
           onClick={function () { handleOpenUser(user) }}
         >
           <Avatar src={user.avatarUrl || user.avatar} username={user.username} size="md" />
-          <span className={styles.searchUserText}>
-            <span className={styles.searchUsername}>
+          <Box component="span" sx={s.searchUserText}>
+            <Box component="span" className="searchUsername" sx={s.searchUsername}>
               {user.username}
               {user.isTrusted && <Icon name="verified" size={15} />}
-            </span>
-            <span className={styles.searchFullName}>{user.fullName || 'Instagram user'}</span>
-          </span>
-        </button>
+            </Box>
+            <Box component="span" sx={s.searchFullName}>{user.fullName || 'Instagram user'}</Box>
+          </Box>
+        </Box>
 
         {isRecent && (
-          <button
+          <Box
+            component="button"
             type="button"
-            className={styles.searchRemoveButton}
+            sx={s.searchRemoveButton}
             onClick={function () { handleRemoveRecent(user._id) }}
             title={t.searchPanel.removeRecent}
           >
             <Icon name="x" size={20} />
-          </button>
+          </Box>
         )}
-      </div>
+      </Box>
     )
   }
 
   return (
-    <div className={styles.searchPanelInner}>
-      <div className={styles.searchPanelHeader}>
+    <Box sx={s.searchPanelInner}>
+      <Box sx={s.searchPanelHeader}>
         <h2>{t.searchPanel.title}</h2>
-        <button type="button" className={styles.searchCloseButton} onClick={onClose} title={t.searchPanel.close}>
+        <Box component="button" type="button" sx={s.searchCloseButton} onClick={onClose} title={t.searchPanel.close}>
           <Icon name="x" size={28} />
-        </button>
-      </div>
+        </Box>
+      </Box>
 
-      <div className={styles.searchInputWrap}>
-        <input
+      <Box sx={s.searchInputWrap}>
+        <Box
+          component="input"
+          sx={s.searchInput}
           value={searchText}
           onChange={function (e) { setSearchText(e.target.value) }}
           placeholder={t.searchPanel.placeholder}
           autoFocus
         />
         {searchText && (
-          <button
+          <Box
+            component="button"
             type="button"
+            sx={s.searchClearButton}
             onClick={function () { setSearchText('') }}
             title={t.searchPanel.clearInput}
           >
             <Icon name="x" size={14} />
-          </button>
+          </Box>
         )}
-      </div>
+      </Box>
 
       {!isSearching && (
         <>
-          <div className={styles.searchSectionTitle}>
+          <Box sx={s.searchSectionTitle}>
             <strong>{t.searchPanel.recent}</strong>
             {recentUsers.length > 0 && (
               <button type="button" onClick={handleClearAll}>{t.searchPanel.clearAll}</button>
             )}
-          </div>
+          </Box>
 
           {recentUsers.length === 0 ? (
-            <p className={styles.searchEmptyText}>{t.searchPanel.noRecent}</p>
+            <Box component="p" sx={s.searchEmptyText}>{t.searchPanel.noRecent}</Box>
           ) : (
-            <div className={styles.searchList}>
+            <Box sx={s.searchList}>
               {recentUsers.map(function (item) {
                 return renderUserRow(item, true)
               })}
-            </div>
+            </Box>
           )}
         </>
       )}
 
       {/* Chế độ hashtag: gõ bắt đầu bằng '#' → chỉ gợi ý hashtag kèm số bài viết (giống Instagram) */}
       {isSearching && isHashtagSearch && (
-        <div className={styles.searchList}>
-          {tagLoading && <div className={styles.searchLoading}><Spinner /></div>}
+        <Box sx={s.searchList}>
+          {tagLoading && <Box sx={s.searchLoading}><Spinner /></Box>}
           {!tagLoading && tags.length === 0 && (
-            <p className={styles.searchEmptyText}>{t.searchPanel.notFoundTags}</p>
+            <Box component="p" sx={s.searchEmptyText}>{t.searchPanel.notFoundTags}</Box>
           )}
           {!tagLoading && tags.map(function (item) {
             return renderTagRow(item)
           })}
-        </div>
+        </Box>
       )}
 
       {/* Chế độ thường: tab Tài khoản / Hashtag */}
       {isSearching && !isHashtagSearch && (
         <>
-          <div style={{ display: 'flex', gap: 4, padding: '0 16px 8px' }}>
-            <button
+          <Box sx={{ display: 'flex', gap: .5, px: 2, pb: 1 }}>
+            <Box
+              component="button"
               type="button"
               onClick={function () { setSearchTab('accounts') }}
-              style={tabStyle(searchTab === 'accounts')}
+              sx={tabSx(searchTab === 'accounts')}
             >
               {t.searchPanel.tabAccounts}
-            </button>
-            <button
+            </Box>
+            <Box
+              component="button"
               type="button"
               onClick={function () { setSearchTab('tags') }}
-              style={tabStyle(searchTab === 'tags')}
+              sx={tabSx(searchTab === 'tags')}
             >
               {t.searchPanel.tabTags}
-            </button>
-          </div>
+            </Box>
+          </Box>
 
           {searchTab === 'accounts' && (
-            <div className={styles.searchList}>
-              {isLoading && <div className={styles.searchLoading}><Spinner /></div>}
+            <Box sx={s.searchList}>
+              {isLoading && <Box sx={s.searchLoading}><Spinner /></Box>}
               {!isLoading && users.length === 0 && (
-                <p className={styles.searchEmptyText}>{t.searchPanel.notFound}</p>
+                <Box component="p" sx={s.searchEmptyText}>{t.searchPanel.notFound}</Box>
               )}
               {!isLoading && users.map(function (item) {
                 return renderUserRow(item, false)
               })}
-            </div>
+            </Box>
           )}
 
           {searchTab === 'tags' && (
-            <div className={styles.searchList}>
-              {tagLoading && <div className={styles.searchLoading}><Spinner /></div>}
+            <Box sx={s.searchList}>
+              {tagLoading && <Box sx={s.searchLoading}><Spinner /></Box>}
               {!tagLoading && tags.length === 0 && (
-                <p className={styles.searchEmptyText}>{t.searchPanel.notFoundTags}</p>
+                <Box component="p" sx={s.searchEmptyText}>{t.searchPanel.notFoundTags}</Box>
               )}
               {!tagLoading && tags.map(function (item) {
                 return renderTagRow(item)
               })}
-            </div>
+            </Box>
           )}
         </>
       )}
-    </div>
+    </Box>
   )
 }
 
-// Style nút tab — active màu nổi, gạch chân
-function tabStyle(active) {
+// Nút tab — mục đang chọn thì chữ sáng và có gạch chân
+function tabSx(active) {
   return {
     flex: 1,
-    padding: '8px 0',
+    py: 1,
     background: 'none',
     border: 'none',
-    borderBottom: active ? '2px solid var(--ig-text, #fff)' : '2px solid transparent',
-    color: active ? 'var(--ig-text, #fff)' : 'var(--ig-text-light, #888)',
+    borderBottom: '2px solid',
+    borderBottomColor: active ? '#fff' : 'transparent',
+    color: active ? '#fff' : '#888',
     fontSize: 14,
     fontWeight: 600,
     cursor: 'pointer',

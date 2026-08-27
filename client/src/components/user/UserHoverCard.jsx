@@ -7,27 +7,36 @@
 
 import { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link as RouterLink, useNavigate } from 'react-router-dom'
+import Paper from '@mui/material/Paper'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Link from '@mui/material/Link'
+import Tooltip from '@mui/material/Tooltip'
+import VerifiedIcon from '@mui/icons-material/Verified'
 import { useAuth } from '../../hooks/useAuth'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Avatar from '../common/Avatar'
 import { formatNumber } from '../../utils/formatNumber'
 import api from '../../services/api'
 import { getMyStories } from '../../features/story/storyAPI'
-import styles from './UserHoverCard.module.css'
+import Spinner from '../common/Spinner'
+import Button from '../common/Button'
+import { slideUp, DUR } from '../../theme/animations'
 
 // Thumbnail nhỏ trong grid — tự ẩn nếu ảnh lỗi (broken URL)
 function PostThumb({ url, href, onClick }) {
   var [broken, setBroken] = useState(false)
   if (broken) return null
   return (
-    <Link to={href} onClick={onClick}>
-      <img
+    <Link component={RouterLink} to={href} onClick={onClick}>
+      <Box
+        component="img"
         src={url}
         alt=""
-        className={styles.postThumb}
         loading="lazy"
         onError={function () { setBroken(true) }}
+        sx={{ width: '100%', aspectRatio: '1', objectFit: 'cover', display: 'block' }}
       />
     </Link>
   )
@@ -138,24 +147,49 @@ export default function UserHoverCard({ username, onMouseEnter, onMouseLeave }) 
     navigate('/' + user.username)
   }
 
+  // Ba ô thống kê dùng chung một khuôn, gom lại cho khỏi lặp
+  var stats = [
+    { value: user?.postsCount || 0, label: t.userCard.posts },
+    { value: user?.followersCount || 0, label: t.userCard.followers },
+    { value: user?.followingCount || 0, label: t.userCard.following },
+  ]
+
   return (
-    <div className={styles.card} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
+    <Paper
+      elevation={8}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      sx={{
+        ...slideUp(DUR.fast, 6),
+        position: 'absolute',
+        top: 'calc(100% + 6px)',
+        left: 0,
+        // Nổi trên nội dung bài viết nhưng vẫn dưới lớp modal
+        zIndex: 600,
+        width: 330,
+        p: 2.5,
+        borderRadius: 4,
+      }}
+    >
       {loading && (
-        <div className={styles.loading}>
-          <div className={styles.spinner} />
-        </div>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 80 }}>
+          <Spinner />
+        </Box>
       )}
 
       {!loading && !user && (
-        <div className={styles.error}>{t.userCard.notFound}</div>
+        <Typography sx={{ fontSize: 14, color: 'text.secondary', textAlign: 'center', py: 2 }}>
+          {t.userCard.notFound}
+        </Typography>
       )}
 
       {!loading && user && (
         <>
           {/* Header: avatar lớn + username + fullName */}
           {/* Có story → bấm avatar mở story modal; không có → vào trang profile */}
-          <div className={styles.header}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, mb: 2.25 }}>
             <Link
+              component={RouterLink}
               to={'/' + user.username}
               onClick={function (e) {
                 if (user.hasActiveStory) {
@@ -165,7 +199,7 @@ export default function UserHoverCard({ username, onMouseEnter, onMouseLeave }) 
                 }
                 if (onMouseLeave) onMouseLeave()
               }}
-              style={user.hasActiveStory ? { cursor: 'pointer' } : undefined}
+              sx={user.hasActiveStory ? { cursor: 'pointer' } : undefined}
             >
               <Avatar
                 src={user.avatarUrl}
@@ -175,45 +209,69 @@ export default function UserHoverCard({ username, onMouseEnter, onMouseLeave }) 
                 seenStory={user.storySeen || false}
               />
             </Link>
-            <div className={styles.info}>
-              <div className={styles.usernameRow}>
-                <Link to={'/' + user.username} className={styles.username} onClick={onMouseLeave}>
+
+            <Box sx={{ minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.625 }}>
+                <Link
+                  component={RouterLink}
+                  to={'/' + user.username}
+                  onClick={onMouseLeave}
+                  underline="hover"
+                  sx={{ fontWeight: 700, fontSize: 16, color: 'text.primary', whiteSpace: 'nowrap' }}
+                >
                   {user.username}
                 </Link>
                 {user.isTrusted && (
-                  <span className={styles.verified} title={t.userCard.verified}>
-                    <svg width="16" height="16" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="12" fill="#3897f0" />
-                      <path d="M7 12.5l3.5 3.5 6.5-7" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </span>
+                  <Tooltip title={t.userCard.verified} arrow>
+                    <VerifiedIcon sx={{ fontSize: 16, color: 'primary.main', flexShrink: 0 }} />
+                  </Tooltip>
                 )}
-              </div>
+              </Box>
+
               {user.fullName && (
-                <div className={styles.fullName}>{user.fullName}</div>
+                <Typography
+                  sx={{
+                    fontSize: 14,
+                    color: 'text.secondary',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {user.fullName}
+                </Typography>
               )}
-            </div>
-          </div>
+            </Box>
+          </Box>
 
           {/* Thống kê: posts / followers / following */}
-          <div className={styles.stats}>
-            <div className={styles.stat}>
-              <span className={styles.statNum}>{formatNumber(user.postsCount || 0)}</span>
-              <span className={styles.statLabel}>{t.userCard.posts}</span>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles.statNum}>{formatNumber(user.followersCount || 0)}</span>
-              <span className={styles.statLabel}>{t.userCard.followers}</span>
-            </div>
-            <div className={styles.stat}>
-              <span className={styles.statNum}>{formatNumber(user.followingCount || 0)}</span>
-              <span className={styles.statLabel}>{t.userCard.following}</span>
-            </div>
-          </div>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', textAlign: 'center', mb: 2 }}>
+            {stats.map(function (item) {
+              return (
+                <Box key={item.label} sx={{ flex: 1 }}>
+                  <Typography sx={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2 }}>
+                    {formatNumber(item.value)}
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                    {item.label}
+                  </Typography>
+                </Box>
+              )
+            })}
+          </Box>
 
           {/* Mini grid 3 ảnh gần nhất */}
           {posts.length > 0 && (
-            <div className={styles.postGrid}>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '3px',
+                mb: 1.75,
+                borderRadius: 2,
+                overflow: 'hidden',
+              }}
+            >
               {posts.map(function (post) {
                 var url = post.mediaUrl || post.media?.[0]?.url
                 if (!url) return null
@@ -226,29 +284,32 @@ export default function UserHoverCard({ username, onMouseEnter, onMouseLeave }) 
                   />
                 )
               })}
-            </div>
+            </Box>
           )}
 
           {/* Nút Follow / Following — ẩn khi là chính mình (không tự follow được) */}
           {isSelf ? (
-            <Link
+            <Button
+              component={RouterLink}
               to={'/' + user.username}
-              className={styles.followBtn + ' ' + styles.followingBtn}
               onClick={onMouseLeave}
+              variant="outline-secondary"
+              fullWidth
             >
               {t.userCard.viewProfile}
-            </Link>
+            </Button>
           ) : (
-            <button
-              className={styles.followBtn + (following ? ' ' + styles.followingBtn : '')}
+            <Button
+              fullWidth
+              variant={following ? 'outline-secondary' : 'primary'}
+              loading={followLoading}
               onClick={handleFollow}
-              disabled={followLoading}
             >
-              {followLoading ? '...' : following ? t.common.following : t.common.follow}
-            </button>
+              {following ? t.common.following : t.common.follow}
+            </Button>
           )}
         </>
       )}
-    </div>
+    </Paper>
   )
 }

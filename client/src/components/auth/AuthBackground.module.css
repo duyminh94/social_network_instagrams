@@ -1,0 +1,315 @@
+/* AuthBackground.module.css
+   Nền động cho cột trái trang đăng nhập / đăng ký
+   ---------------------------------------------------------------
+   Bố cục mô phỏng ảnh mẫu: các icon mạng xã hội rải thành một mạng lưới
+   nối với nhau, đặt trên mặt phẳng dữ liệu dạng chấm nhìn nghiêng.
+
+   Chiều sâu tạo bằng 3 lớp far / mid / near:
+     far  — nhỏ, mờ, làm nền
+     mid  — trung bình
+     near — to, nét, sáng rõ
+   Mỗi lớp dịch theo con trỏ với biên độ khác nhau, lớp gần dịch nhiều hơn
+   lớp xa — đúng cách mắt người cảm nhận khoảng cách khi di chuyển.
+
+   Mọi animation lặp đều là @keyframes CSS nên chạy trên compositor,
+   không tốn luồng JS. JS chỉ ghi --mx / --my khi di chuột. */
+
+.wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #05070f;
+  /* Vị trí con trỏ, quy về khoảng -1..1 tính từ tâm khung */
+  --mx: 0;
+  --my: 0;
+}
+
+/* ── Lớp nền: ảnh bản đồ mạng lưới ─────────────────────────────── */
+/* Phóng to 106% để khi parallax dịch ảnh vẫn còn dư mép,
+   không lộ ra khoảng trống ở viền khung */
+.photo {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-size: cover;
+  transform: scale(1.06) translate3d(calc(var(--mx) * -12px), calc(var(--my) * -12px), 0);
+  transition: transform .6s cubic-bezier(.22, .61, .36, 1);
+}
+
+/* Phủ tối lên ảnh: ảnh gốc khá sáng ở giữa, để nguyên thì icon và chữ
+   phía trên bị chìm. Tối bớt phần giữa và làm sẫm dần về hai mép */
+.photoOverlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(3, 6, 14, .55) 0%, rgba(3, 6, 14, .2) 55%, transparent 80%),
+    linear-gradient(90deg, rgba(3, 6, 14, .75) 0%, transparent 22%, transparent 78%, rgba(3, 6, 14, .8) 100%),
+    linear-gradient(180deg, rgba(3, 6, 14, .6) 0%, transparent 26%, transparent 74%, rgba(3, 6, 14, .7) 100%);
+}
+
+/* ── Mạng lưới đường nối ───────────────────────────────────────── */
+.web {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: translate3d(calc(var(--mx) * -14px), calc(var(--my) * -14px), 0);
+  transition: transform .45s cubic-bezier(.22, .61, .36, 1);
+}
+
+/* non-scaling-stroke giữ nét luôn mảnh 1px thật.
+   Thiếu nó thì viewBox bị kéo giãn theo khung sẽ làm nét méo thành
+   những vạch to nhỏ khác nhau, trông như gạch rời rạc chứ không ra mạng lưới */
+.link {
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  animation: linkGlow 6s ease-in-out infinite;
+}
+
+/* Ảnh nền đã có sẵn một mạng lưới riêng, nên lớp đường nối này chỉ để
+   liên kết các icon lại với nhau — giữ thật mờ để hai mạng không đánh nhau */
+@keyframes linkGlow {
+  0%, 100% { opacity: .10; }
+  50%      { opacity: .3; }
+}
+
+/* Hạt sáng chạy dọc đường nối — gợi ý dữ liệu đang truyền giữa các điểm */
+.spark {
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 22;
+  animation: sparkMove 4.5s linear infinite;
+}
+
+@keyframes sparkMove {
+  from { stroke-dashoffset: 22; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* ── Chấm sáng nhấp nháy (Pulse) ───────────────────────────────── */
+.dot {
+  animation: dotPulse 3.2s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: .25; transform: scale(.85); }
+  50%      { opacity: .75; transform: scale(1.3); }
+}
+
+/* ── Ba lớp icon theo chiều sâu ────────────────────────────────── */
+/* Lớp càng gần dịch càng mạnh khi rê chuột — đó là toàn bộ mẹo Parallax */
+.layer {
+  position: absolute;
+  inset: 0;
+  transition: transform .4s cubic-bezier(.22, .61, .36, 1);
+}
+
+.layerFar {
+  transform: translate3d(calc(var(--mx) * 8px), calc(var(--my) * 8px), 0);
+  filter: blur(1.1px);
+  opacity: .62;
+}
+
+.layerMid {
+  transform: translate3d(calc(var(--mx) * 20px), calc(var(--my) * 20px), 0);
+}
+
+.layerNear {
+  transform: translate3d(calc(var(--mx) * 38px), calc(var(--my) * 38px), 0);
+}
+
+/* ── Một icon trên mạng lưới ───────────────────────────────────── */
+.node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Đường kính viên tròn, JSX truyền vào dạng clamp() để co theo bề ngang cột */
+  width: var(--size);
+  height: var(--size);
+  /* Kéo về đúng tâm toạ độ đã đặt, vì left/top tính từ góc trên trái */
+  translate: -50% -50%;
+  animation: floatY var(--dur, 7s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Icon bên trong luôn bằng nửa viên tròn.
+   Suy ra từ --size thay vì truyền thêm một con số nữa: đổi kích thước
+   viên tròn là icon tự theo, không lo hai giá trị lệch nhau.
+   Selector .chip svg đủ mạnh để thắng .MuiSvgIcon-root của MUI */
+.chip svg {
+  font-size: calc(var(--size) * .5);
+}
+
+@keyframes floatY {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -14px, 0); }
+}
+
+/* Viên tròn chứa icon — phần nhìn thấy được.
+   currentColor lấy màu thương hiệu truyền từ JSX, dùng luôn cho quầng sáng */
+.chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .16), rgba(8, 13, 26, .92) 62%);
+  border: 1px solid rgba(255, 255, 255, .16);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, .04),
+    0 0 22px -6px currentColor,
+    0 0 46px -12px currentColor;
+  transition: box-shadow .25s ease, border-color .25s ease;
+}
+
+/* Vòng sáng lan ra quanh icon lớn, tách riêng khỏi .chip để không
+   ảnh hưởng tới transform của chính viên tròn */
+.halo {
+  position: absolute;
+  inset: calc(var(--size) * -.14);
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0;
+  animation: halo 3.6s ease-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes halo {
+  0%   { transform: scale(.82); opacity: .55; }
+  70%  { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* ── Vòng quỹ đạo quanh icon trung tâm (Orbit + Rotate) ────────── */
+.orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(190px, 30vw, 300px);
+  height: clamp(190px, 30vw, 300px);
+  translate: -50% -50%;
+  border: 1px dashed rgba(140, 180, 255, .14);
+  border-radius: 50%;
+  animation: spin 60s linear infinite;
+  transform: translate3d(calc(var(--mx) * 20px), calc(var(--my) * 20px), 0);
+}
+
+@keyframes spin {
+  to { rotate: 360deg; }
+}
+
+/* Trục quay mang icon nhỏ đi vòng quanh */
+.orbitArm {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  animation: spinArm var(--dur, 26s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes spinArm {
+  from { rotate: 0deg; }
+  to   { rotate: 360deg; }
+}
+
+/* Icon phải xoay ngược đúng bằng tốc độ của trục, nếu không nó sẽ
+   lộn ngược đầu khi đi tới nửa vòng phía dưới */
+.orbitIcon {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  translate: var(--radius, 120px) 0;
+  animation: spinArmReverse var(--dur, 26s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes spinArmReverse {
+  from { rotate: 0deg; }
+  to   { rotate: -360deg; }
+}
+
+/* ── Hút về phía con trỏ (Magnetic) ────────────────────────────── */
+.magnetic {
+  transition: translate .2s cubic-bezier(.34, 1.56, .64, 1), scale .2s ease;
+}
+
+.pulled {
+  translate: calc(-50% + var(--pull-x, 0px)) calc(-50% + var(--pull-y, 0px));
+  scale: 1.18;
+}
+
+.pulled .chip {
+  border-color: rgba(255, 255, 255, .38);
+  box-shadow: 0 0 30px -4px currentColor, 0 0 60px -10px currentColor;
+}
+
+/* ── Vệt sáng bám theo con trỏ (Trail) ─────────────────────────── */
+.trailDot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(140, 200, 255, .9) 0%, rgba(140, 200, 255, 0) 70%);
+  animation: fadeTrail .8s ease-out forwards;
+}
+
+@keyframes fadeTrail {
+  from { transform: scale(1);  opacity: .8; }
+  to   { transform: scale(.15); opacity: 0; }
+}
+
+/* ── Chữ giới thiệu ────────────────────────────────────────────── */
+/* Quầng tối phía sau chữ: icon chạy ngay sau lưng nên không có lớp này
+   thì chữ trắng rất khó đọc */
+.veil {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(470px, 82%);
+  height: min(310px, 48%);
+  translate: -50% -50%;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(3, 6, 14, .88) 0%, rgba(3, 6, 14, .5) 46%, transparent 74%);
+}
+
+.content {
+  position: relative;
+  z-index: 3;
+  max-width: 380px;
+  padding: 40px;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, .9), 0 0 40px rgba(0, 0, 0, .7);
+  transform: translate3d(calc(var(--mx) * 7px), calc(var(--my) * 7px), 0);
+  transition: transform .55s cubic-bezier(.22, .61, .36, 1);
+}
+
+/* ── Tôn trọng thiết lập giảm chuyển động của hệ điều hành ─────── */
+/* Người bị say chuyển động có thể chóng mặt vì nền động.
+   Khi bật "Reduce motion", tắt hết animation và giữ bố cục tĩnh */
+@media (prefers-reduced-motion: reduce) {
+  .link, .spark, .dot, .node, .halo,
+  .orbit, .orbitArm, .orbitIcon, .trailDot {
+    animation: none !important;
+  }
+
+  .photo, .web, .layer, .content, .orbit {
+    transition: none !important;
+  }
+
+  .trailDot { display: none; }
+}

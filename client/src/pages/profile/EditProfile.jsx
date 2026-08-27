@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import api from '../../services/api'
 import { useAuth } from '../../hooks/useAuth'
 import { useLanguage } from '../../i18n/LanguageContext'
@@ -12,7 +14,7 @@ import BioEditor from '../../components/common/BioEditor'
 import AvatarPickerModal from '../../components/avatar/AvatarPickerModal'
 import AvatarEditor from '../../components/avatar/AvatarEditor'
 import SettingsSidebar from './SettingsSidebar'
-import styles from './EditProfile.module.css'
+import * as s from './settingsStyles'
 
 export default function EditProfile() {
   const { user, updateUser } = useAuth()
@@ -98,23 +100,42 @@ export default function EditProfile() {
   }
 
   return (
-    <div className={styles.page}>
+    <Box sx={s.page}>
 
       {/* ── Sidebar navigation ── */}
       <SettingsSidebar active="edit" />
 
       {/* ── Main form ── */}
-      <main className={styles.main}>
-        <div className={styles.sectionTitle}>{t.editProfile.title}</div>
+      <Box component="main" sx={s.main}>
+        <Typography sx={s.sectionTitle}>{t.editProfile.title}</Typography>
 
         {/* Avatar */}
-        <div className={styles.avatarRow}>
-          <div
-            className={styles.avatarWrap}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 4 }}>
+          <Box
             onClick={() => !avatarUploading && setShowPicker(true)}
+            sx={{
+              position: 'relative',
+              flexShrink: 0,
+              cursor: 'pointer',
+              // Lớp phủ chỉ hiện khi rê chuột lên ảnh đại diện
+              '&:hover .avatarOverlay': { opacity: 1 },
+            }}
           >
             <Avatar src={avatarPreview} username={user?.username} size="lg" />
-            <div className={styles.avatarOverlay}>
+            <Box
+              className="avatarOverlay"
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: '50%',
+                bgcolor: 'rgba(0, 0, 0, 0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: 0,
+                transition: 'opacity 0.2s',
+              }}
+            >
               {avatarUploading ? (
                 <Spinner size="sm" />
               ) : (
@@ -123,33 +144,35 @@ export default function EditProfile() {
                   <circle cx="12" cy="13" r="4"/>
                 </svg>
               )}
-            </div>
-          </div>
+            </Box>
+          </Box>
 
-          <div className={styles.avatarInfo}>
-            <div className={styles.avatarUsername}>{user?.username}</div>
-          </div>
-        </div>
+          <Box>
+            <Typography sx={{ fontSize: 20, fontWeight: 600, mb: .75 }}>{user?.username}</Typography>
+          </Box>
+        </Box>
 
         {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)}>
 
           {/* Full Name */}
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>{t.editProfile.fullNameLabel}</label>
-            <input
-              className={`${styles.fieldInput} ${errors.fullName ? styles.error : ''}`}
+          <Box sx={s.fieldGroup}>
+            <Typography component="label" sx={s.fieldLabel}>{t.editProfile.fullNameLabel}</Typography>
+            <Box
+              component="input"
+              sx={s.fieldInput(!!errors.fullName)}
               placeholder={t.editProfile.fullNamePlaceholder}
               {...register('fullName', { required: t.editProfile.fullNameRequired })}
             />
-            {errors.fullName && <div className={styles.fieldError}>{errors.fullName.message}</div>}
-          </div>
+            {errors.fullName && <Typography sx={s.fieldError}>{errors.fullName.message}</Typography>}
+          </Box>
 
           {/* Username */}
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>{t.editProfile.usernameLabel}</label>
-            <input
-              className={`${styles.fieldInput} ${errors.username ? styles.error : ''}`}
+          <Box sx={s.fieldGroup}>
+            <Typography component="label" sx={s.fieldLabel}>{t.editProfile.usernameLabel}</Typography>
+            <Box
+              component="input"
+              sx={s.fieldInput(!!errors.username)}
               placeholder="username"
               {...register('username', {
                 required: t.editProfile.usernameRequired,
@@ -157,70 +180,101 @@ export default function EditProfile() {
               })}
             />
             {errors.username
-              ? <div className={styles.fieldError}>{errors.username.message}</div>
-              : <div className={styles.fieldHint}>{t.editProfile.usernameHint}</div>
+              ? <Typography sx={s.fieldError}>{errors.username.message}</Typography>
+              : <Typography sx={s.fieldHint}>{t.editProfile.usernameHint}</Typography>
             }
-          </div>
+          </Box>
 
           {/* Bio */}
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>{t.editProfile.bioLabel}</label>
+          <Box sx={s.fieldGroup}>
+            <Typography component="label" sx={s.fieldLabel}>{t.editProfile.bioLabel}</Typography>
             <BioEditor
               value={bioHtml}
               onChange={setBioHtml}
               placeholder={t.editProfile.bioPlaceholder}
             />
-          </div>
+          </Box>
 
           {/* Website */}
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>{t.editProfile.websiteLabel}</label>
-            <input
+          <Box sx={s.fieldGroup}>
+            <Typography component="label" sx={s.fieldLabel}>{t.editProfile.websiteLabel}</Typography>
+            <Box
+              component="input"
               type="url"
-              className={styles.fieldInput}
+              sx={s.fieldInput(false)}
               placeholder={t.editProfile.websitePlaceholder}
               {...register('website')}
             />
-          </div>
+          </Box>
 
-          <div className={styles.divider} />
+          <Box sx={{ height: '1px', bgcolor: 'divider', my: 3.5 }} />
 
           {/* Private account toggle */}
-          <div className={styles.privacyRow}>
-            <div className={styles.privacyInfo}>
-              <div className={styles.privacyLabel}>{t.editProfile.privateLabel}</div>
-              <div className={styles.privacyDesc}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, py: .5, mb: 3 }}>
+            <Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary', mb: .5 }}>
+                {t.editProfile.privateLabel}
+              </Typography>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
                 {isPrivate ? t.editProfile.privateOn : t.editProfile.privateOff}
-              </div>
-            </div>
-            <button
+              </Typography>
+            </Box>
+
+            {/* Công tắc tự vẽ thay vì Switch của MUI để giữ đúng kích thước và màu bản cũ */}
+            <Box
+              component="button"
               type="button"
-              className={`${styles.toggle} ${isPrivate ? styles.on : ''}`}
               onClick={() => setIsPrivate(p => !p)}
+              sx={{
+                flexShrink: 0,
+                width: 48,
+                height: 26,
+                borderRadius: '13px',
+                border: 'none',
+                bgcolor: isPrivate ? '#0095f6' : 'divider',
+                position: 'relative',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+              }}
             >
-              <span className={styles.toggleKnob} />
-            </button>
-          </div>
+              <Box
+                component="span"
+                sx={{
+                  position: 'absolute',
+                  top: '3px',
+                  left: isPrivate ? '25px' : '3px',
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  bgcolor: '#fff',
+                  transition: 'left 0.2s',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                }}
+              />
+            </Box>
+          </Box>
 
           {/* Actions */}
-          <div className={styles.actions}>
-            <button
+          <Box sx={s.actions}>
+            <Box
+              component="button"
               type="submit"
-              className={styles.btnSave}
+              sx={s.btnSave}
               disabled={isSubmitting || avatarUploading}
             >
               {isSubmitting ? t.editProfile.saving : t.editProfile.save}
-            </button>
-            <button
+            </Box>
+            <Box
+              component="button"
               type="button"
-              className={styles.btnCancel}
+              sx={s.btnCancel}
               onClick={() => navigate('/' + user?.username)}
             >
               {t.editProfile.cancel}
-            </button>
-          </div>
-        </form>
-      </main>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
 
       {/* Avatar picker */}
       {showPicker && !editorSrc && (
@@ -240,6 +294,6 @@ export default function EditProfile() {
         />
       )}
 
-    </div>
+    </Box>
   )
 }

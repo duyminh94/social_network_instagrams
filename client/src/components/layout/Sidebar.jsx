@@ -22,7 +22,8 @@ import ConfirmModal from '../common/ConfirmModal'
 import CreatePostForm from '../post/CreatePostForm'
 import Notifications from '../../pages/notifications/Notifications'
 import SearchPanel from './SearchPanel'
-import styles from './Layout.module.css'
+import Box from '@mui/material/Box'
+import * as s from './layoutStyles'
 
 // Phải khớp với role enum trong User.js và AdminRoute.jsx
 const ADMIN_ROLES = ['super_admin', 'moderator']
@@ -186,13 +187,16 @@ export default function Sidebar() {
 
   return (
     <>
-      <nav
+      <Box
+        component="nav"
         ref={sidebarRef}
-        className={styles.sidebar + (showNotifications || showSearch ? ' ' + styles.sidebarPanelOpen : '')}
+        sx={s.sidebar(showNotifications || showSearch)}
       >
         {/* Logo — click về trang chủ */}
-        <button
-          className={styles.logoBtn}
+        <Box
+          component="button"
+          type="button"
+          sx={s.logoBtn}
           onClick={function () {
             setShowSearch(false)
             setShowNotifications(false)
@@ -202,10 +206,10 @@ export default function Sidebar() {
           title="Home"
         >
           <Mark size={32} accent="#ff6b58" dark={true} />
-        </button>
+        </Box>
 
         {/* Nav items chính */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: .5, flex: 1 }}>
           {navItems.map(function (item) {
             var itemActive = isActive(item.path)
             if (item.panel === 'search' && showSearch) {
@@ -216,13 +220,16 @@ export default function Sidebar() {
             }
 
             return (
-              <button
+              <Box
+                component="button"
+                type="button"
                 key={item.path}
-                className={`${styles.navItem} ${itemActive ? styles.active : ''}`}
+                className={s.SB_ITEM}
+                sx={s.navItem(itemActive)}
                 onClick={function () { handleNavClick(item) }}
                 title={item.label}
               >
-                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                <Box component="span" sx={{ position: 'relative', display: 'inline-flex' }}>
                   <Icon
                     name={item.icon}
                     size={22}
@@ -230,19 +237,22 @@ export default function Sidebar() {
                   />
                   {/* Badge số thông báo chưa đọc */}
                   {item.badge > 0 && (
-                    <span className={styles.notifBadge}>
+                    <Box component="span" key={item.badge} sx={s.notifBadge}>
                       {item.badge > 9 ? '9+' : item.badge}
-                    </span>
+                    </Box>
                   )}
-                </span>
-                <span className={styles.sidebarLabel}>{item.label}</span>
-              </button>
+                </Box>
+                <Box component="span" className={s.SB_LABEL} sx={s.sidebarLabel}>{item.label}</Box>
+              </Box>
             )
           })}
 
           {/* Nút tạo bài viết — click mở CreatePostForm modal */}
-          <button
-            className={styles.navItem}
+          <Box
+            component="button"
+            type="button"
+            className={s.SB_ITEM}
+            sx={s.navItem(false)}
             onClick={function () {
               setShowSearch(false)
               setShowNotifications(false)
@@ -251,36 +261,40 @@ export default function Sidebar() {
             }}
             title={t.nav.createPost}
           >
-            <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>+</span>
-            <span className={styles.sidebarLabel}>{t.nav.create}</span>
-          </button>
+            <Box component="span" sx={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>+</Box>
+            <Box component="span" className={s.SB_LABEL} sx={s.sidebarLabel}>{t.nav.create}</Box>
+          </Box>
 
           {/* Nút Admin — chỉ hiện khi có quyền */}
           {hasAdminAccess && (
-            <>
-              <button
-                className={`${styles.navItem} ${isActive('/admin') ? styles.active : ''}`}
-                onClick={function () {
-                  setShowSearch(false)
-                  setShowNotifications(false)
-                  setShowMoreMenu(false)
-                  navigate('/admin')
-                }}
-                title={t.nav.admin}
-              >
-                <Icon name="shield" size={22} />
-                <span className={styles.sidebarLabel}>{t.nav.admin}</span>
-              </button>
-            </>
+            <Box
+              component="button"
+              type="button"
+              className={s.SB_ITEM}
+              sx={s.navItem(isActive('/admin'))}
+              onClick={function () {
+                setShowSearch(false)
+                setShowNotifications(false)
+                setShowMoreMenu(false)
+                navigate('/admin')
+              }}
+              title={t.nav.admin}
+            >
+              <Icon name="shield" size={22} />
+              <Box component="span" className={s.SB_LABEL} sx={s.sidebarLabel}>{t.nav.admin}</Box>
+            </Box>
           )}
-        </div>
+        </Box>
 
         {/* Phần dưới: avatar profile + logout */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: .5 }}>
           {/* Click vào avatar → vào trang profile */}
           {user && (
-            <button
-              className={styles.navItem}
+            <Box
+              component="button"
+              type="button"
+              className={s.SB_ITEM}
+              sx={s.navItem(false)}
               onClick={function () {
                 setShowSearch(false)
                 setShowNotifications(false)
@@ -289,17 +303,19 @@ export default function Sidebar() {
               }}
               title={user.username}
             >
-              <span className={styles.sidebarAvatar}>
+              <Box component="span" sx={s.sidebarAvatar}>
                 <Avatar src={user.avatar || user.avatarUrl} username={user.username} size="sm" />
-              </span>
-              <span className={styles.sidebarLabel}>{t.nav.profile}</span>
-            </button>
+              </Box>
+              <Box component="span" className={s.SB_LABEL} sx={s.sidebarLabel}>{t.nav.profile}</Box>
+            </Box>
           )}
 
           {/* Nút đổi ngôn ngữ — bấm để chuyển Việt/Anh */}
-          <button
+          <Box
+            component="button"
             type="button"
-            className={styles.navItem}
+            className={s.SB_ITEM}
+            sx={s.navItem(false)}
             onClick={function () {
               setShowSearch(false)
               setShowNotifications(false)
@@ -308,14 +324,16 @@ export default function Sidebar() {
             }}
             title={lang === 'vi' ? 'Switch to English' : 'Chuyển sang tiếng Việt'}
           >
-            <span className={styles.langFlag}>{lang === 'vi' ? '🇺🇸' : '🇻🇳'}</span>
-            <span className={styles.sidebarLabel}>{lang === 'vi' ? 'English' : 'Tiếng Việt'}</span>
-          </button>
+            <Box component="span" sx={s.langFlag}>{lang === 'vi' ? '🇺🇸' : '🇻🇳'}</Box>
+            <Box component="span" className={s.SB_LABEL} sx={s.sidebarLabel}>{lang === 'vi' ? 'English' : 'Tiếng Việt'}</Box>
+          </Box>
 
           {/* Nút đổi giao diện sáng / tối */}
-          <button
+          <Box
+            component="button"
             type="button"
-            className={styles.navItem}
+            className={s.SB_ITEM}
+            sx={s.navItem(false)}
             onClick={function () {
               setShowSearch(false)
               setShowNotifications(false)
@@ -326,18 +344,21 @@ export default function Sidebar() {
               ? (lang === 'vi' ? 'Chuyển giao diện sáng' : 'Switch to light mode')
               : (lang === 'vi' ? 'Chuyển giao diện tối' : 'Switch to dark mode')}
           >
-            <span className={styles.langFlag}>{theme === 'dark' ? '☀️' : '🌙'}</span>
-            <span className={styles.sidebarLabel}>
+            <Box component="span" sx={s.langFlag}>{theme === 'dark' ? '☀️' : '🌙'}</Box>
+            <Box component="span" className={s.SB_LABEL} sx={s.sidebarLabel}>
               {theme === 'dark'
                 ? (lang === 'vi' ? 'Giao diện sáng' : 'Light mode')
                 : (lang === 'vi' ? 'Giao diện tối' : 'Dark mode')}
-            </span>
-          </button>
+            </Box>
+          </Box>
 
           {/* Nút menu riêng, không dùng chung với icon Khám phá */}
-          <div className={styles.moreWrap} ref={moreMenuRef}>
-            <button
-              className={`${styles.navItem} ${showMoreMenu ? styles.active : ''}`}
+          <Box sx={s.moreWrap} ref={moreMenuRef}>
+            <Box
+              component="button"
+              type="button"
+              className={s.SB_ITEM}
+              sx={s.navItem(showMoreMenu)}
               onClick={function () {
                 setShowSearch(false)
                 setShowNotifications(false)
@@ -348,14 +369,15 @@ export default function Sidebar() {
               title={t.nav.more}
             >
               <Icon name="menu" size={22} />
-              <span className={styles.sidebarLabel}>{t.nav.more}</span>
-            </button>
+              <Box component="span" className={s.SB_LABEL} sx={s.sidebarLabel}>{t.nav.more}</Box>
+            </Box>
 
             {showMoreMenu && (
-              <div className={styles.moreMenu}>
-                <button
+              <Box sx={s.moreMenu}>
+                <Box
+                  component="button"
                   type="button"
-                  className={styles.moreMenuItem}
+                  sx={s.moreMenuItem}
                   onClick={function () {
                     setShowMoreMenu(false)
                     handleLogoutClick()
@@ -363,11 +385,11 @@ export default function Sidebar() {
                 >
                   <Icon name="x" size={18} />
                   <span>{t.nav.logout}</span>
-                </button>
-              </div>
+                </Box>
+              </Box>
             )}
-          </div>
-        </div>
+          </Box>
+        </Box>
 
         {/* Modal xác nhận logout */}
         {showLogoutConfirm && (
@@ -384,23 +406,23 @@ export default function Sidebar() {
           onClose={function () { setShowCreatePost(false) }}
           onCreated={handlePostCreated}
         />
-      </nav>
+      </Box>
 
       {showSearch && (
-        <aside ref={searchPanelRef} className={styles.searchPanel}>
+        <Box component="aside" ref={searchPanelRef} sx={s.searchPanel}>
           <SearchPanel
             onClose={function () { setShowSearch(false) }}
           />
-        </aside>
+        </Box>
       )}
 
       {showNotifications && (
-        <aside ref={notificationPanelRef} className={styles.notificationPanel}>
+        <Box component="aside" ref={notificationPanelRef} sx={s.notificationPanel}>
           <Notifications
             isPanel={true}
             onClose={function () { setShowNotifications(false) }}
           />
-        </aside>
+        </Box>
       )}
     </>
   )

@@ -7,29 +7,59 @@
 // Trang này nằm trong MainLayout nên vẫn giữ Sidebar / MobileNav,
 // người dùng có thể điều hướng tiếp thay vì bị kẹt
 
-import { Link } from 'react-router-dom'
+import { Link as RouterLink } from 'react-router-dom'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import { useLanguage } from '../../i18n/LanguageContext'
-import styles from './NotFound.module.css'
+import Button from '../../components/common/Button'
 
 export default function NotFound() {
   var { t } = useLanguage()
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.code}>404</div>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        minHeight: '60vh',
+        px: 2.5,
+        py: 5,
+      }}
+    >
+      {/* Số 404 cỡ lớn, làm mờ để không lấn át dòng tiêu đề bên dưới */}
+      <Typography
+        sx={{
+          fontSize: 72,
+          fontWeight: 700,
+          lineHeight: 1,
+          letterSpacing: '-2px',
+          color: 'text.secondary',
+          opacity: .35,
+          mb: 1,
+        }}
+      >
+        404
+      </Typography>
 
-      <h1 className={styles.title}>{t.notFound.title}</h1>
+      <Typography component="h1" sx={{ fontSize: 22, fontWeight: 600, mb: 1.25 }}>
+        {t.notFound.title}
+      </Typography>
 
-      <p className={styles.message}>{t.notFound.message}</p>
+      <Typography sx={{ fontSize: 14, lineHeight: 1.6, maxWidth: 380, mb: 3, color: 'text.secondary' }}>
+        {t.notFound.message}
+      </Typography>
 
-      <div className={styles.actions}>
-        <Link to="/" className={styles.primaryBtn}>
+      <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <Button component={RouterLink} to="/">
           {t.notFound.backHome}
-        </Link>
-        <Link to="/explore" className={styles.secondaryBtn}>
+        </Button>
+        <Button component={RouterLink} to="/explore" variant="outline-secondary">
           {t.notFound.explore}
-        </Link>
-      </div>
-    </div>
+        </Button>
+      </Box>
+    </Box>
   )
 }

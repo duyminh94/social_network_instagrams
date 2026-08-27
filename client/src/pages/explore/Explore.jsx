@@ -10,7 +10,10 @@ import { getExplore } from '../../features/post/postAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
 import PostModal from '../../components/post/PostModal'
 import MediaTypeBadge from '../../components/post/MediaTypeBadge'
-import Spinner from '../../components/common/Spinner'
+import Box from '@mui/material/Box'
+import { GridSkeleton } from '../../components/common/Skeletons'
+import * as profileS from '../profile/profileStyles'
+import { staggerIn } from '../../theme/animations'
 
 export default function Explore() {
   const [selectedPost, setSelectedPost] = useState(null)
@@ -39,7 +42,7 @@ export default function Explore() {
       </h6>
 
       {exploreLoading ? (
-        <Spinner fullPage />
+        <GridSkeleton count={12} gap="3px" />
       ) : isEmpty ? (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -56,26 +59,25 @@ export default function Explore() {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
-          {explorePosts.map(function (post) {
+          {explorePosts.map(function (post, i) {
             const media = post.media?.[0]
             const mediaUrl = post.mediaUrl || media?.url
             const isVideo = post.mediaType === 'video' || media?.mediaType === 'video'
             // Video ưu tiên thumbnail để grid nhẹ và đẹp hơn; thiếu thumbnail mới fallback video.
             const thumb = isVideo ? (post.thumbnailUrl || media?.thumbnailUrl) : mediaUrl
             return (
-              <div
+              <Box
                 key={post._id}
-                style={{ aspectRatio: 1, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}
+                // Dùng lại postThumb của trang cá nhân để 2 lưới ảnh hành xử giống nhau
+                sx={{ ...profileS.postThumb, ...staggerIn(i) }}
                 onClick={() => setSelectedPost(post)}
               >
                 {thumb ? (
                   <img
                     src={thumb}
                     alt="explore"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'opacity 0.15s' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     loading="lazy"
-                    onMouseOver={(e) => (e.currentTarget.style.opacity = '0.85')}
-                    onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
                   />
                 ) : isVideo && mediaUrl ? (
                   <video
@@ -87,7 +89,7 @@ export default function Explore() {
                   />
                 ) : null}
                 <MediaTypeBadge post={post} />
-              </div>
+              </Box>
             )
           })}
         </div>

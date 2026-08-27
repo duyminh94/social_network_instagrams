@@ -1,8 +1,23 @@
+// pages/admin/AdminContentDetail.jsx
+// Chi tiết một bài viết / reel / story cho admin
+//
+// Cho phép ẩn hoặc bỏ ẩn nội dung, và xem danh sách người đã thích,
+//   bình luận hoặc báo cáo nội dung đó trong một hộp thoại riêng
+
 import { useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Badge, Modal, Pagination } from 'react-bootstrap'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Chip from '@mui/material/Chip'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import IconButton from '@mui/material/IconButton'
+import CloseIcon from '@mui/icons-material/Close'
+import Pagination from '@mui/material/Pagination'
 import api from '../../services/api'
 import Avatar from '../../components/common/Avatar'
 import Button from '../../components/common/Button'
@@ -12,7 +27,14 @@ import Spinner from '../../components/common/Spinner'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { formatDateTime } from '../../utils/formatTime'
 import { canGoAdminBack, goAdmin } from '../../utils/adminNavigation'
-import styles from './AdminContent.module.css'
+import * as s from './adminStyles'
+
+// Màu Chip theo trạng thái xử lý của báo cáo
+function reportStatusColor(status) {
+  if (status === 'pending') return 'warning'
+  if (status === 'resolved') return 'success'
+  return 'default'
+}
 
 export default function AdminContentDetail() {
   var { contentType, id } = useParams()
@@ -28,11 +50,14 @@ export default function AdminContentDetail() {
     queryKey: ['adminContentDetail', contentType, id],
     queryFn: function () { return api.get('/admin/content/' + contentType + '/' + id).then(function (response) { return response.data }) },
   })
+
+  // Chỉ gọi API tương tác khi hộp thoại thực sự mở
   var interactionQuery = useQuery({
     queryKey: ['adminContentInteractions', contentType, id, dialogType, dialogPage],
     queryFn: function () { return api.get('/admin/content/' + contentType + '/' + id + '/interactions', { params: { kind: dialogType, page: dialogPage, limit: 15 } }).then(function (response) { return response.data }) },
     enabled: !!dialogType,
   })
+
   var visibilityMutation = useMutation({
     mutationFn: function (action) { return api.patch('/admin/content/' + contentType + '/' + id + '/' + action) },
     onSuccess: function (_, action) {
@@ -41,11 +66,15 @@ export default function AdminContentDetail() {
       setConfirmVisibility(false)
       toast.success(action === 'unhide' ? t.admin.content.unhiddenSuccess : t.admin.content.hiddenSuccess)
     },
-    onError: function (error, action) { toast.error(error.response?.data?.message || (action === 'unhide' ? t.admin.content.unhideFailed : t.admin.content.hideFailed)) },
+    onError: function (error, action) {
+      toast.error(error.response?.data?.message || (action === 'unhide' ? t.admin.content.unhideFailed : t.admin.content.hideFailed))
+    },
   })
 
   if (detailQuery.isLoading) return <Spinner fullPage />
-  if (detailQuery.isError || !detailQuery.data?.content) return <div className={styles.empty}>{t.admin.content.notFound}</div>
+  if (detailQuery.isError || !detailQuery.data?.content) {
+    return <Box sx={s.empty}>{t.admin.content.notFound}</Box>
+  }
 
   var content = detailQuery.data.content
   var counts = detailQuery.data.counts || {}
@@ -53,6 +82,11 @@ export default function AdminContentDetail() {
   var dialogItems = interactionQuery.data?.items || []
   var totalPages = interactionQuery.data?.totalPages || 1
   var dialogTitles = { likes: t.admin.content.likes, comments: t.admin.content.comments, reports: t.admin.content.reports }
+  var metrics = [
+    { key: 'likes', icon: 'heart', label: t.admin.content.likes },
+    { key: 'comments', icon: 'comment', label: t.admin.content.comments },
+    { key: 'reports', icon: 'flag', label: t.admin.content.reports },
+  ]
 
   function openDialog(type) { setDialogPage(1); setDialogType(type) }
   function closeDialog() { setDialogType(''); setDialogPage(1) }
@@ -62,73 +96,202 @@ export default function AdminContentDetail() {
   }
 
   return (
-    <div className={styles.page}>
+    <Box sx={s.page}>
       {canGoAdminBack(location) && (
-        <button type="button" className={styles.backButton} onClick={function () { navigate(-1) }}>
+        <Box component="button" type="button" sx={s.backButton} onClick={function () { navigate(-1) }}>
           <Icon name="arrowL" size={18} />Quay về
-        </button>
+        </Box>
       )}
 
-      <div className={styles.detailHeader}>
-        <div><Badge bg={content.isDeleted ? 'secondary' : 'success'}>{content.isDeleted ? t.admin.content.hidden : t.admin.content.visible}</Badge><h2>{t.admin.content.detailTitle}</h2></div>
-        <Button variant={content.isDeleted ? 'success' : 'danger'} onClick={function () { setConfirmVisibility(true) }}><Icon name={content.isDeleted ? 'check' : 'eye'} size={17} /><span className={styles.buttonLabel}>{content.isDeleted ? t.admin.content.unhide : t.admin.content.hide}</span></Button>
-      </div>
+      <Box sx={s.pageHeader}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Chip
+            size="small"
+            color={content.isDeleted ? 'default' : 'success'}
+            label={content.isDeleted ? t.admin.content.hidden : t.admin.content.visible}
+          />
+          <Typography component="h2" sx={s.pageTitle}>{t.admin.content.detailTitle}</Typography>
+        </Box>
 
-      <section className={styles.detailGrid}>
-        <div className={styles.mediaGallery}>
-          {media.length === 0 ? <div className={styles.mediaEmpty}><Icon name="image" size={32} /></div> : media.map(function (item) {
+        <Button
+          variant={content.isDeleted ? 'success' : 'danger'}
+          onClick={function () { setConfirmVisibility(true) }}
+        >
+          {content.isDeleted ? t.admin.content.unhide : t.admin.content.hide}
+        </Button>
+      </Box>
+
+      <Box component="section" sx={s.detailGrid}>
+        <Box sx={s.mediaGallery}>
+          {media.length === 0 ? (
+            <Box sx={s.mediaEmpty}><Icon name="image" size={32} /></Box>
+          ) : media.map(function (item) {
             return item.mediaType === 'video'
               ? <video key={item._id || item.url} src={item.url} poster={item.thumbnailUrl || undefined} controls preload="metadata" />
               : <img key={item._id || item.url} src={item.url} alt="" />
           })}
-        </div>
-        <div className={styles.detailInfo}>
-          <button type="button" className={styles.authorLargeButton} disabled={!content.author?._id} onClick={function () { openUser(content.author) }}>
+        </Box>
+
+        <Box sx={s.card}>
+          <Box
+            component="button"
+            type="button"
+            sx={s.personIdentity}
+            disabled={!content.author?._id}
+            onClick={function () { openUser(content.author) }}
+          >
             <Avatar src={content.author?.avatarUrl} username={content.author?.username} size="lg" />
-            <span><strong>{content.author?.fullName || content.author?.username}</strong><span>@{content.author?.username}</span><small>{content.author?.email}</small></span>
-          </button>
-          <div className={styles.infoBlock}><span>{t.admin.content.content}</span><p>{content.caption || t.admin.content.noCaption}</p></div>
-          <div className={styles.infoBlock}><span>{t.admin.content.publishedAt}</span><p>{formatDateTime(content.createdAt)}</p></div>
-        </div>
-      </section>
+            <Box component="span">
+              <strong>{content.author?.fullName || content.author?.username}</strong>
+              <span>@{content.author?.username}</span>
+              <small>{content.author?.email}</small>
+            </Box>
+          </Box>
 
-      <section className={styles.metrics}>
-        {[{ key: 'likes', icon: 'heart', label: t.admin.content.likes }, { key: 'comments', icon: 'comment', label: t.admin.content.comments }, { key: 'reports', icon: 'flag', label: t.admin.content.reports }].map(function (metric) {
-          return <article key={metric.key}><div className={styles.metricIcon}><Icon name={metric.icon} size={21} /></div><div><span>{metric.label}</span><strong>{counts[metric.key] || 0}</strong></div><button type="button" onClick={function () { openDialog(metric.key) }}>{t.admin.content.viewMore}</button></article>
+          <Box sx={{ mt: 2 }}>
+            <Box sx={s.infoRow}>
+              <span>{t.admin.content.content}</span>
+              <Typography sx={{ fontSize: 14 }}>{content.caption || t.admin.content.noCaption}</Typography>
+            </Box>
+            <Box sx={s.infoRow}>
+              <span>{t.admin.content.publishedAt}</span>
+              <Typography sx={{ fontSize: 14 }}>{formatDateTime(content.createdAt)}</Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+
+      <Box component="section" sx={s.metricsRow}>
+        {metrics.map(function (metric) {
+          return (
+            <Box component="article" key={metric.key} sx={s.metricCard}>
+              <Box sx={s.metricIcon}><Icon name={metric.icon} size={21} /></Box>
+              <Box sx={{ flex: 1 }}>
+                <Typography sx={{ fontSize: 12, color: s.adminColors.muted, fontWeight: 700, textTransform: 'uppercase' }}>
+                  {metric.label}
+                </Typography>
+                <Typography sx={{ fontSize: 24, fontWeight: 900, color: s.adminColors.ink }}>
+                  {counts[metric.key] || 0}
+                </Typography>
+              </Box>
+              <Button size="sm" variant="outline-secondary" onClick={function () { openDialog(metric.key) }}>
+                {t.admin.content.viewMore}
+              </Button>
+            </Box>
+          )
         })}
-      </section>
+      </Box>
 
-      <Modal show={!!dialogType} onHide={closeDialog} centered size="lg" scrollable>
-        <Modal.Header closeButton><Modal.Title>{dialogTitles[dialogType]}</Modal.Title></Modal.Header>
-        <Modal.Body className={styles.dialogBody}>
-          {interactionQuery.isLoading ? <Spinner /> : interactionQuery.isError ? <div className={styles.empty}>{t.admin.content.loadFailed}</div> : dialogItems.length === 0 ? <div className={styles.empty}>{t.admin.content.noInteractions}</div> : (
-            <div className={styles.interactionList}>
+      {/* Hộp thoại danh sách người thích / bình luận / báo cáo */}
+      <Dialog open={!!dialogType} onClose={closeDialog} maxWidth="md" fullWidth scroll="paper">
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pr: 1 }}>
+          <Typography component="span" sx={{ fontSize: 16, fontWeight: 700 }}>
+            {dialogTitles[dialogType]}
+          </Typography>
+          <IconButton onClick={closeDialog} size="small" aria-label={t.common.cancel}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent dividers>
+          {interactionQuery.isLoading ? (
+            <Spinner />
+          ) : interactionQuery.isError ? (
+            <Box sx={s.empty}>{t.admin.content.loadFailed}</Box>
+          ) : dialogItems.length === 0 ? (
+            <Box sx={s.empty}>{t.admin.content.noInteractions}</Box>
+          ) : (
+            <Box>
               {dialogItems.map(function (item) {
+                // Báo cáo lấy người gửi báo cáo, còn lại lấy người tương tác
                 var person = dialogType === 'reports' ? item.reporterId : item.userId
+
                 return (
-                  <div key={item._id} className={styles.interactionItem}>
-                    <button type="button" className={styles.avatarLink} disabled={!person?._id} onClick={function () { openUser(person) }}>
+                  <Box key={item._id} sx={s.interactionItem}>
+                    <Box
+                      component="button"
+                      type="button"
+                      sx={{ p: 0, border: 0, background: 'transparent', cursor: 'pointer' }}
+                      disabled={!person?._id}
+                      onClick={function () { openUser(person) }}
+                    >
                       <Avatar src={person?.avatarUrl} username={person?.username} size="sm" />
-                    </button>
-                    <div className={styles.interactionContent}>
-                      <div className={styles.interactionTop}>
-                        <button type="button" disabled={!person?._id} onClick={function () { openUser(person) }}>{person?.fullName || person?.username || t.admin.content.unknown}</button>
-                        <time>{formatDateTime(item.createdAt)}</time>
-                      </div>
-                      <span>@{person?.username || t.admin.content.unknown} - {person?.email}</span>
-                      {dialogType === 'comments' && <p>{item.content}</p>}
-                      {dialogType === 'reports' && <div className={styles.reportInfo}><p><b>{t.admin.content.reason}:</b> {item.reason}</p>{item.description && <p><b>{t.admin.content.description}:</b> {item.description}</p>}<Badge bg={item.status === 'pending' ? 'warning' : item.status === 'resolved' ? 'success' : 'secondary'}>{item.status}</Badge><button type="button" className={styles.reportDetailButton} onClick={function () { goAdmin(navigate, '/admin/reports/' + item._id) }}>Xem report</button></div>}
-                    </div>
-                  </div>
+                    </Box>
+
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
+                        <Box
+                          component="button"
+                          type="button"
+                          sx={{ p: 0, border: 0, background: 'transparent', cursor: 'pointer', fontWeight: 700, color: s.adminColors.ink }}
+                          disabled={!person?._id}
+                          onClick={function () { openUser(person) }}
+                        >
+                          {person?.fullName || person?.username || t.admin.content.unknown}
+                        </Box>
+                        <Typography component="time" sx={{ fontSize: 12, color: s.adminColors.muted, whiteSpace: 'nowrap' }}>
+                          {formatDateTime(item.createdAt)}
+                        </Typography>
+                      </Box>
+
+                      <Typography sx={{ fontSize: 13, color: s.adminColors.muted }}>
+                        @{person?.username || t.admin.content.unknown} - {person?.email}
+                      </Typography>
+
+                      {dialogType === 'comments' && (
+                        <Typography sx={{ mt: 0.5, fontSize: 14 }}>{item.content}</Typography>
+                      )}
+
+                      {dialogType === 'reports' && (
+                        <Box sx={{ mt: 1 }}>
+                          <Typography sx={{ fontSize: 14 }}>
+                            <b>{t.admin.content.reason}:</b> {item.reason}
+                          </Typography>
+                          {item.description && (
+                            <Typography sx={{ fontSize: 14 }}>
+                              <b>{t.admin.content.description}:</b> {item.description}
+                            </Typography>
+                          )}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mt: 1 }}>
+                            <Chip size="small" color={reportStatusColor(item.status)} label={item.status} />
+                            <Button
+                              size="sm"
+                              variant="outline-primary"
+                              onClick={function () { goAdmin(navigate, '/admin/reports/' + item._id) }}
+                            >
+                              Xem report
+                            </Button>
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
                 )
               })}
-            </div>
+            </Box>
           )}
-        </Modal.Body>
-        {totalPages > 1 && <Modal.Footer className={styles.modalFooter}><Pagination size="sm" className="mb-0"><Pagination.Prev disabled={dialogPage <= 1} onClick={function () { setDialogPage(function (value) { return value - 1 }) }} /><Pagination.Item active>{dialogPage} / {totalPages}</Pagination.Item><Pagination.Next disabled={dialogPage >= totalPages} onClick={function () { setDialogPage(function (value) { return value + 1 }) }} /></Pagination></Modal.Footer>}
-      </Modal>
+        </DialogContent>
 
-      {confirmVisibility && <ConfirmModal message={content.isDeleted ? t.admin.content.unhideConfirm : t.admin.content.hideConfirm} onCancel={function () { setConfirmVisibility(false) }} onConfirm={function () { visibilityMutation.mutate(content.isDeleted ? 'unhide' : 'hide') }} />}
-    </div>
+        {totalPages > 1 && (
+          <DialogActions sx={{ justifyContent: 'center', py: 2 }}>
+            <Pagination
+              size="small"
+              count={totalPages}
+              page={dialogPage}
+              onChange={function (_, value) { setDialogPage(value) }}
+              color="primary"
+            />
+          </DialogActions>
+        )}
+      </Dialog>
+
+      {confirmVisibility && (
+        <ConfirmModal
+          message={content.isDeleted ? t.admin.content.unhideConfirm : t.admin.content.hideConfirm}
+          onCancel={function () { setConfirmVisibility(false) }}
+          onConfirm={function () { visibilityMutation.mutate(content.isDeleted ? 'unhide' : 'hide') }}
+        />
+      )}
+    </Box>
   )
 }

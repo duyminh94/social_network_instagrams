@@ -17,7 +17,77 @@ import ReportModal from '../../components/common/ReportModal'
 import { useAuth } from '../../hooks/useAuth'
 import { formatNumber } from '../../utils/formatNumber'
 import { useLanguage } from '../../i18n/LanguageContext'
-import styles from './Reels.module.css'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+
+// Trang Reels luôn nền đen kể cả khi app bật giao diện sáng nên màu ghi cứng,
+//   không lấy từ token theme
+var MOBILE = '@media (max-width:768px)'
+
+// Khung 9:16: chiều rộng tính theo chiều cao để giữ đúng tỉ lệ, tối đa 480px
+var frameSx = {
+  position: 'relative',
+  height: '100dvh',
+  width: 'calc(100dvh * 9 / 16)',
+  maxWidth: 480,
+  overflow: 'hidden',
+  bgcolor: '#000',
+  flexShrink: 0,
+  [MOBILE]: { width: '100dvw', maxWidth: '100dvw' },
+}
+
+var actionItemSx = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: .625,
+}
+
+var actionBtnSx = {
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  p: .75,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'transform 0.15s ease',
+  '&:active': { transform: 'scale(0.88)' },
+}
+
+var actionLabelSx = {
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#fff',
+  textShadow: '0 1px 3px rgba(0, 0, 0, 0.7)',
+  lineHeight: 1,
+}
+
+var navBtnSx = {
+  width: 44,
+  height: 44,
+  borderRadius: '50%',
+  bgcolor: 'rgba(255, 255, 255, 0.15)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  color: '#fff',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'background 0.15s, transform 0.12s',
+  '&:hover:not(:disabled)': { bgcolor: 'rgba(255, 255, 255, 0.28)', transform: 'scale(1.08)' },
+  '&:active:not(:disabled)': { transform: 'scale(0.94)' },
+  '&:disabled': { opacity: .25, cursor: 'default' },
+}
+
+// Trang Reels chiếm hết bề ngang: kéo ngược 76px margin-left của mainContent
+var fullBleedSx = {
+  width: '100vw',
+  ml: '-76px',
+  [MOBILE]: { width: '100%', ml: 0 },
+}
 
 function ReelItem({ reel, isVisible }) {
   const { t } = useLanguage()
@@ -160,16 +230,16 @@ function ReelItem({ reel, isVisible }) {
   }
 
   return (
-    <div className={styles.slide}>
+    <Box sx={{ width: '100%', height: '100dvh', scrollSnapAlign: 'start', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#000', position: 'relative' }}>
       {/* Khung 9:16 portrait */}
-      <div className={styles.frame} onClick={togglePlay}>
+      <Box sx={frameSx} onClick={togglePlay}>
 
         {/* Video */}
         {mediaUrl ? (
-          <video
+          <Box
+            component="video"
             ref={videoRef}
             src={mediaUrl}
-            className={isLandscape ? styles.videoContain : styles.video}
             style={{ filter: filterCss }}
             loop={!trimEnd}
             muted={muted || hasAudio}
@@ -179,25 +249,58 @@ function ReelItem({ reel, isVisible }) {
               setIsLandscape(e.target.videoWidth > e.target.videoHeight)
               if (trimStart > 0) e.target.currentTime = trimStart
             }}
+            sx={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              // Video ngang thì letterbox thay vì crop mất hai bên
+              objectFit: isLandscape ? 'contain' : 'cover',
+              bgcolor: isLandscape ? '#000' : undefined,
+            }}
           />
         ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 14 }}>
+          <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: 14 }}>
             {t.reel.noVideo}
-          </div>
+          </Box>
         )}
 
         {/* Overlay play / pause hint khi click */}
         {showHint && (
-          <div className={styles.playHint}>
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10,
+              pointerEvents: 'none',
+              animation: 'hintFade 0.7s ease forwards',
+              '@keyframes hintFade': {
+                '0%':   { opacity: 1,  transform: 'scale(1)' },
+                '60%':  { opacity: .8, transform: 'scale(1.15)' },
+                '100%': { opacity: 0,  transform: 'scale(1.3)' },
+              },
+              '& svg': { filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.6))' },
+            }}
+          >
             {isPlaying
               ? <svg width="52" height="52" viewBox="0 0 24 24" fill="white"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
               : <svg width="52" height="52" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             }
-          </div>
+          </Box>
         )}
 
-        {/* Gradient đáy */}
-        <div className={styles.gradient} />
+        {/* Gradient đáy — nền cho chữ trắng đọc được trên video sáng */}
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.25) 35%, transparent 65%)',
+            pointerEvents: 'none',
+            zIndex: 1,
+          }}
+        />
 
         {/* Audio ẩn */}
         {hasAudio && (
@@ -205,74 +308,130 @@ function ReelItem({ reel, isVisible }) {
         )}
 
         {/* ── Thông tin trái dưới ── */}
-        <div className={styles.info}>
-          <Link to={'/' + reel.user?.username} className={styles.userRow}>
+        <Box sx={{ position: 'absolute', bottom: 88, left: 14, right: 72, color: '#fff', zIndex: 2, pointerEvents: 'auto' }}>
+          <Box
+            component={Link}
+            to={'/' + reel.user?.username}
+            sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25, textDecoration: 'none' }}
+          >
             <Avatar src={reel.user?.avatarUrl} username={reel.user?.username} size="sm" />
-            <span className={styles.username}>{reel.user?.username}</span>
+            <Typography component="span" sx={{ fontWeight: 700, color: '#fff', fontSize: 15, textShadow: '0 1px 4px rgba(0, 0, 0, 0.6)' }}>
+              {reel.user?.username}
+            </Typography>
             {reel.user?.isTrusted && <Icon name="verified" size={14} />}
-          </Link>
+          </Box>
 
           {reel.caption && (
-            <div className={styles.caption}><CaptionText text={reel.caption} /></div>
+            <Box
+              sx={{
+                fontSize: 14,
+                lineHeight: 1.55,
+                mb: 1,
+                textShadow: '0 1px 3px rgba(0, 0, 0, 0.6)',
+                // Cắt caption còn 3 dòng để không che mất video
+                display: '-webkit-box',
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              <CaptionText text={reel.caption} />
+            </Box>
           )}
 
           {audioName && (
-            <div className={styles.audioRow}>
-              <span>🎵</span>
-              <span className={styles.audioName}>{audioName}</span>
-            </div>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: .75, fontSize: 13, color: 'rgba(255, 255, 255, 0.9)', textShadow: '0 1px 3px rgba(0, 0, 0, 0.6)' }}>
+              <Box component="span">🎵</Box>
+              <Box component="span" sx={{ whiteSpace: 'nowrap', overflow: 'hidden', maxWidth: 180, textOverflow: 'ellipsis' }}>
+                {audioName}
+              </Box>
+            </Box>
           )}
-        </div>
+        </Box>
 
         {/* ── Hành động phải dưới ── */}
-        <div className={styles.actions}>
+        <Box sx={{ position: 'absolute', bottom: 80, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2.5, zIndex: 2 }}>
 
           {/* Like */}
-          <div className={styles.actionItem}>
-            <button className={styles.actionBtn} onClick={handleLike}>
+          <Box sx={actionItemSx}>
+            <Box component="button" type="button" sx={actionBtnSx} onClick={handleLike}>
               <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
                 fill={liked ? '#E1306C' : 'none'}
                 stroke={liked ? '#E1306C' : 'white'}
                 strokeWidth="2">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>
-            </button>
-            <span className={styles.actionLabel}>{formatNumber(likesCount)}</span>
-          </div>
+            </Box>
+            <Typography component="span" sx={actionLabelSx}>{formatNumber(likesCount)}</Typography>
+          </Box>
 
           {/* Comment */}
-          <div className={styles.actionItem}>
-            <button className={styles.actionBtn} onClick={() => setShowComments(v => !v)}>
+          <Box sx={actionItemSx}>
+            <Box component="button" type="button" sx={actionBtnSx} onClick={() => setShowComments(v => !v)}>
               <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               </svg>
-            </button>
-            <span className={styles.actionLabel}>{formatNumber(commentsCount)}</span>
-          </div>
+            </Box>
+            <Typography component="span" sx={actionLabelSx}>{formatNumber(commentsCount)}</Typography>
+          </Box>
 
           {!isOwn && (
-            <div className={styles.actionItem}>
-              <button className={styles.actionBtn} onClick={function (event) { event.stopPropagation(); setShowReport(true) }} title={t.common.report}>
+            <Box sx={actionItemSx}>
+              <Box component="button" type="button" sx={actionBtnSx} onClick={function (event) { event.stopPropagation(); setShowReport(true) }} title={t.common.report}>
                 <Icon name="flag" size={27} />
-              </button>
-              <span className={styles.actionLabel}>{t.common.report}</span>
-            </div>
+              </Box>
+              <Typography component="span" sx={actionLabelSx}>{t.common.report}</Typography>
+            </Box>
           )}
 
           {/* Đĩa nhạc / Mute toggle */}
           {hasAudio ? (
-            <div
-              className={`${styles.audioDisc} ${muted ? styles.audioDiscPaused : ''}`}
+            <Box
               onClick={toggleMute}
               title={muted ? 'Bật nhạc' : 'Tắt nhạc'}
+              sx={{
+                width: 46,
+                height: 46,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 50%, #444 0%, #111 70%)',
+                border: '3px solid #666',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 18,
+                cursor: 'default',
+                flexShrink: 0,
+                animation: 'spinDisc 5s linear infinite',
+                // Tắt nhạc thì dừng đĩa quay cho khớp trạng thái
+                animationPlayState: muted ? 'paused' : 'running',
+                '@keyframes spinDisc': {
+                  from: { transform: 'rotate(0deg)' },
+                  to:   { transform: 'rotate(360deg)' },
+                },
+              }}
             >
               🎵
-            </div>
+            </Box>
           ) : (
-            <button
-              className={styles.muteBtn}
+            <Box
+              component="button"
+              type="button"
               onClick={toggleMute}
               title={muted ? 'Bật âm thanh' : 'Tắt âm thanh'}
+              sx={{
+                width: 42,
+                height: 42,
+                borderRadius: '50%',
+                bgcolor: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backdropFilter: 'blur(6px)',
+                transition: 'background 0.15s',
+                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.3)' },
+              }}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24">
                 {muted
@@ -280,13 +439,13 @@ function ReelItem({ reel, isVisible }) {
                   : <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></>
                 }
               </svg>
-            </button>
+            </Box>
           )}
 
-        </div>
+        </Box>
 
         {showReport && <ReportModal targetId={reel._id} targetType="reel" onClose={function () { setShowReport(false) }} />}
-      </div>
+      </Box>
 
       {/* Panel bình luận nằm cạnh phải video (không đè lên video) */}
       {showComments && (
@@ -296,7 +455,7 @@ function ReelItem({ reel, isVisible }) {
           onCommentsCountChange={delta => setCommentsCount(c => c + delta)}
         />
       )}
-    </div>
+    </Box>
   )
 }
 
@@ -423,40 +582,118 @@ export default function Reels() {
 
   if (reels.length === 0) {
     return (
-      <div className={styles.empty}>
-        <div className={styles.emptyIcon}>🎬</div>
-        <div className={styles.emptyTitle}>{t.reel.emptyTitle}</div>
-        <div className={styles.emptyDesc}>{t.reel.emptyDesc}</div>
-        <button className={styles.emptyBtn} onClick={() => setShowCreator(true)}>
+      <Box
+        sx={{
+          ...fullBleedSx,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100dvh',
+          flexDirection: 'column',
+          gap: 1.75,
+          bgcolor: '#000',
+          color: '#fff',
+        }}
+      >
+        <Box sx={{ fontSize: 52 }}>🎬</Box>
+        <Box sx={{ fontSize: 17, fontWeight: 800 }}>{t.reel.emptyTitle}</Box>
+        <Box sx={{ fontSize: 14, color: 'rgba(255, 255, 255, 0.55)' }}>{t.reel.emptyDesc}</Box>
+        <Box
+          component="button"
+          type="button"
+          onClick={() => setShowCreator(true)}
+          sx={{
+            mt: .75,
+            px: 3.5, py: 1.375,
+            bgcolor: '#0095f6',
+            border: 'none',
+            borderRadius: 2.5,
+            color: '#fff',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
           🎬 {t.reel.emptyBtn}
-        </button>
+        </Box>
         {showCreator && (
           <ReelCreator
             onClose={() => setShowCreator(false)}
             onCreated={() => queryClient.invalidateQueries({ queryKey: ['reels'] })}
           />
         )}
-      </div>
+      </Box>
     )
   }
 
   return (
     <>
-      <button className={styles.createBtn} onClick={() => setShowCreator(true)}>
-        <span style={{ fontSize: 16 }}>+</span> {t.reel.createBtn}
-      </button>
+      <Box
+        component="button"
+        type="button"
+        onClick={() => setShowCreator(true)}
+        sx={{
+          position: 'fixed',
+          top: 14,
+          right: 18,
+          zIndex: 300,
+          bgcolor: 'rgba(0, 0, 0, 0.55)',
+          border: '1px solid rgba(255, 255, 255, 0.28)',
+          borderRadius: '20px',
+          px: 2, py: .875,
+          color: '#fff',
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: 'pointer',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: .75,
+          letterSpacing: '0.2px',
+          '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)' },
+        }}
+      >
+        <Box component="span" sx={{ fontSize: 16 }}>+</Box> {t.reel.createBtn}
+      </Box>
 
-      <div ref={containerRef} className={styles.container}>
+      <Box
+        ref={containerRef}
+        sx={{
+          ...fullBleedSx,
+          height: '100dvh',
+          overflowY: 'scroll',
+          overflowX: 'hidden',
+          bgcolor: '#000',
+          // Cuộn dính từng reel một, không dừng lơ lửng giữa 2 reel
+          scrollSnapType: 'y mandatory',
+        }}
+      >
         {reels.map((reel, i) => (
           <ReelItem key={reel._id || i} reel={reel} isVisible={i === visibleIndex} />
         ))}
-      </div>
+      </Box>
 
       {/* Nút lên / xuống — ngoài frame, bên phải */}
       {reels.length > 1 && (
-        <div className={styles.navBtns}>
-          <button
-            className={styles.navBtn}
+        <Box
+          sx={{
+            position: 'fixed',
+            // Sát mép phải để không bị panel bình luận che khi mở
+            right: 16,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.25,
+            zIndex: 300,
+            // Mobile dùng vuốt nên ẩn hẳn 2 nút này
+            [MOBILE]: { display: 'none' },
+          }}
+        >
+          <Box
+            component="button"
+            type="button"
+            sx={navBtnSx}
             onClick={() => goTo(visibleIndex - 1)}
             disabled={visibleIndex === 0}
             title="Reel trước"
@@ -464,9 +701,11 @@ export default function Reels() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="18 15 12 9 6 15"/>
             </svg>
-          </button>
-          <button
-            className={styles.navBtn}
+          </Box>
+          <Box
+            component="button"
+            type="button"
+            sx={navBtnSx}
             onClick={() => goTo(visibleIndex + 1)}
             disabled={visibleIndex === reels.length - 1}
             title="Reel tiếp"
@@ -474,8 +713,8 @@ export default function Reels() {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="6 9 12 15 18 9"/>
             </svg>
-          </button>
-        </div>
+          </Box>
+        </Box>
       )}
 
       {showCreator && (

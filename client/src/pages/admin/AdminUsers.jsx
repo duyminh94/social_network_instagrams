@@ -11,7 +11,18 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Form, Table, Badge, Pagination } from 'react-bootstrap'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import Chip from '@mui/material/Chip'
+import Pagination from '@mui/material/Pagination'
+import IconButton from '@mui/material/IconButton'
 import api from '../../services/api'
 import Spinner from '../../components/common/Spinner'
 import Avatar from '../../components/common/Avatar'
@@ -19,7 +30,14 @@ import Icon from '../../components/common/Icon'
 import { useAuth } from '../../hooks/useAuth'
 import { useLanguage } from '../../i18n/LanguageContext'
 import { goAdmin } from '../../utils/adminNavigation'
-import styles from './AdminShared.module.css'
+import * as s from './adminStyles'
+
+// Màu Chip theo vai trò — quyền càng cao càng nổi bật
+function roleColor(role) {
+  if (role === 'super_admin') return 'error'
+  if (role === 'moderator') return 'warning'
+  return 'default'
+}
 
 export default function AdminUsers() {
   var { user } = useAuth()
@@ -49,107 +67,131 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className={styles.page}>
-      {/* Filters */}
-      <div className={styles.pageHeader}><div><h2>{t.admin.dashboard.manageUsers}</h2><p>{t.admin.content.listDescription}</p></div></div>
-      <div className={styles.filters}>
-        <Form.Control
-          type="text"
+    <Box sx={s.page}>
+      <Box sx={s.pageHeader}>
+        <Box>
+          <Typography component="h2" sx={s.pageTitle}>{t.admin.dashboard.manageUsers}</Typography>
+          <Typography sx={s.pageSubtitle}>{t.admin.content.listDescription}</Typography>
+        </Box>
+      </Box>
+
+      <Box sx={s.filterRow}>
+        <TextField
+          size="small"
           placeholder={t.admin.users.searchPlaceholder}
           value={search}
           onChange={function (e) { setSearch(e.target.value); setPage(1) }}
-          className={styles.filterInput}
+          sx={{ flex: 1, minWidth: 220 }}
         />
-        <Form.Select
+        <TextField
+          select
+          size="small"
           value={bannedFilter}
           onChange={function (e) { setBannedFilter(e.target.value); setPage(1) }}
-          className={styles.filterSelect}
+          // displayEmpty: MUI mặc định coi giá trị '' là chưa chọn gì và bỏ trống ô,
+          //   khiến người dùng không biết đang lọc theo tiêu chí nào
+          slotProps={{ select: { displayEmpty: true } }}
+          sx={{ minWidth: 180 }}
         >
-          <option value="">{t.admin.users.all}</option>
-          <option value="true">{t.admin.users.banned}</option>
-          <option value="false">{t.admin.users.active}</option>
-        </Form.Select>
-      </div>
+          <MenuItem value="">{t.admin.users.all}</MenuItem>
+          <MenuItem value="true">{t.admin.users.banned}</MenuItem>
+          <MenuItem value="false">{t.admin.users.active}</MenuItem>
+        </TextField>
+      </Box>
 
       {isLoading ? (
         <Spinner fullPage />
       ) : (
         <>
-          <div className={styles.tableWrap}>
-            <Table hover className={styles.table}>
-              <thead>
-                <tr>
-                  <th>{t.admin.users.colUser}</th>
-                  <th>{t.admin.users.colRole}</th>
-                  <th>{t.admin.users.colStatus}</th>
-                  <th>{t.admin.users.colTrusted}</th>
-                  <th>{t.admin.users.colActions}</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Box sx={s.tableWrap}>
+            <Table sx={s.table}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>{t.admin.users.colUser}</TableCell>
+                  <TableCell>{t.admin.users.colRole}</TableCell>
+                  <TableCell>{t.admin.users.colStatus}</TableCell>
+                  <TableCell>{t.admin.users.colTrusted}</TableCell>
+                  <TableCell>{t.admin.users.colActions}</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {users.length === 0 && (
-                  <tr><td colSpan={5} className={styles.emptyCell}>{t.admin.users.noUsers}</td></tr>
+                  <TableRow>
+                    <TableCell colSpan={5} sx={{ textAlign: 'center', color: s.adminColors.muted }}>
+                      {t.admin.users.noUsers}
+                    </TableCell>
+                  </TableRow>
                 )}
+
                 {users.map(function (u) {
                   return (
-                    <tr key={u._id}>
-                      <td>
-                        <button type="button" className={styles.userButton} onClick={function () { goAdmin(navigate, '/admin/users/' + u._id) }}>
+                    <TableRow key={u._id}>
+                      <TableCell>
+                        <Box
+                          component="button"
+                          type="button"
+                          sx={s.userButton}
+                          onClick={function () { goAdmin(navigate, '/admin/users/' + u._id) }}
+                        >
                           <Avatar src={u.avatarUrl} username={u.username} size="sm" />
-                          <span>
+                          <Box component="span">
                             <strong>{u.fullName || u.username}</strong>
                             <small>@{u.username}</small>
                             <small>{u.email}</small>
-                          </span>
-                        </button>
-                      </td>
-                      <td>
-                        <Badge bg={u.role === 'super_admin' ? 'danger' : u.role === 'moderator' ? 'warning' : 'secondary'}>
-                          {u.role || 'user'}
-                        </Badge>
-                      </td>
-                      <td>
-                        <Badge bg={u.isBanned ? 'danger' : 'success'}>
-                          {u.isBanned ? t.admin.users.statusBanned : t.admin.users.statusActive}
-                        </Badge>
-                      </td>
-                      <td>
+                          </Box>
+                        </Box>
+                      </TableCell>
+
+                      <TableCell>
+                        <Chip size="small" color={roleColor(u.role)} label={u.role || 'user'} />
+                      </TableCell>
+
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          color={u.isBanned ? 'error' : 'success'}
+                          label={u.isBanned ? t.admin.users.statusBanned : t.admin.users.statusActive}
+                        />
+                      </TableCell>
+
+                      <TableCell>
                         {/* isTrusted = tick xanh xác thực do admin cấp */}
-                        <Badge bg={u.isTrusted ? 'primary' : 'secondary'}>
-                          {u.isTrusted ? t.admin.users.trusted : t.admin.users.unverified}
-                        </Badge>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
+                        <Chip
+                          size="small"
+                          color={u.isTrusted ? 'primary' : 'default'}
+                          label={u.isTrusted ? t.admin.users.trusted : t.admin.users.unverified}
+                        />
+                      </TableCell>
+
+                      <TableCell>
+                        <IconButton
+                          size="small"
                           title={t.admin.users.viewDetail}
                           aria-label={t.admin.users.viewDetail}
                           onClick={function () { goAdmin(navigate, '/admin/users/' + u._id) }}
-                          className={styles.iconButton}
                         >
                           <Icon name="eye" size={18} />
-                        </button>
-                      </td>
-                    </tr>
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
+              </TableBody>
             </Table>
-          </div>
+          </Box>
 
           {totalPages > 1 && (
-            <Pagination className={styles.pagination}>
-              <Pagination.Prev disabled={page <= 1} onClick={function () { setPage(function (p) { return p - 1 }) }} />
-              {Array.from({ length: Math.min(totalPages, 10) }, function (_, i) { return i + 1 }).map(function (p) {
-                return (
-                  <Pagination.Item key={p} active={p === page} onClick={function () { setPage(p) }}>{p}</Pagination.Item>
-                )
-              })}
-              <Pagination.Next disabled={page >= totalPages} onClick={function () { setPage(function (p) { return p + 1 }) }} />
-            </Pagination>
+            <Box sx={s.paginationRow}>
+              <Pagination
+                count={totalPages}
+                page={page}
+                onChange={function (_, value) { setPage(value) }}
+                color="primary"
+              />
+            </Box>
           )}
         </>
       )}
-    </div>
+    </Box>
   )
 }
