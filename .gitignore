@@ -17,3 +17,5 @@ client/dist/
 # Bỏ qua thư mục node_modules trong thư mục client (nếu có)
 client/node_modules/
 
+THUYET_TRINH.md
+FRONTEND_PLAN.md
