@@ -628,6 +628,12 @@ var translations = {
       tabTags: 'Hashtag',
     },
 
+    notFound: {
+      title: 'Không tìm thấy trang',
+      message: 'Liên kết bạn vừa mở có thể đã hỏng hoặc trang đã bị gỡ.',
+      backHome: 'Về trang chủ',
+      explore: 'Khám phá',
+    },
     admin: {
       dashboard: {
         title: 'Admin Dashboard',
@@ -1483,6 +1489,12 @@ var translations = {
       tabTags: 'Hashtags',
     },
 
+    notFound: {
+      title: 'Page not found',
+      message: 'The link you opened may be broken, or the page may have been removed.',
+      backHome: 'Back to home',
+      explore: 'Explore',
+    },
     admin: {
       dashboard: {
         title: 'Admin Dashboard',

@@ -36,6 +36,7 @@ import EditProfile from '../pages/profile/EditProfile'
 import ChangePassword from '../pages/profile/ChangePassword'
 import BlockedUsers from '../pages/profile/BlockedUsers'
 import Notifications from '../pages/notifications/Notifications'
+import NotFound from '../pages/notfound/NotFound'
 
 // Trang lazy load — chỉ tải chunk khi user thực sự điều hướng đến
 const Chat = lazy(function () { return import('../pages/chat/Chat') })
@@ -94,6 +95,10 @@ export default function AppRoutes() {
           <Route path="/:username/blocked" element={<BlockedUsers />} />
           <Route path="/:username/edit" element={<EditProfile />} />
           <Route path="/:username" element={<Profile />} />
+
+          {/* Catch-all: URL không khớp route nào ở trên → trang 404
+              React Router v6 luôn ưu tiên route cụ thể hơn, nên "*" chỉ chạy khi không còn lựa chọn */}
+          <Route path="*" element={<NotFound />} />
 
         </Route>
       </Route>
