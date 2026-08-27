@@ -1,0 +1,848 @@
+/* ── Backdrop & Modal ── */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.modal {
+  background: var(--bg-elevated);
+  border-radius: 18px;
+  width: 100%;
+  max-width: 420px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+}
+
+/* Modal mở rộng khi ở bước edit — đủ chỗ cho 2 cột */
+.editModal {
+  max-width: 800px;
+  max-height: 96vh;
+}
+
+/* ── Shared ── */
+.stepTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+}
+
+.backBtn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.12s;
+}
+.backBtn:hover { background: var(--hover); }
+
+.closeBtn {
+  margin: 8px 20px 20px;
+  padding: 11px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.closeBtn:hover { background: var(--hover); }
+
+/* ── SOURCE STEP ── */
+.sourceStep {
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px 0;
+  gap: 16px;
+  flex: 1;
+}
+
+.sourceOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sourceBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 16px 18px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+.sourceBtn:hover { background: var(--hover); border-color: var(--ink-muted); }
+
+.sourceBtnIcon { font-size: 28px; margin-bottom: 2px; }
+.sourceBtnLabel { font-size: 15px; font-weight: 700; color: var(--ink); }
+.sourceBtnDesc { font-size: 13px; color: var(--ink-muted); }
+
+/* ── CAMERA STEP ── */
+.cameraStep {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.cameraHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.flipBtn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.12s;
+}
+.flipBtn:hover { background: var(--hover); }
+
+.cameraPreviewWrap {
+  position: relative;
+  flex: 1;
+  background: #000;
+  overflow: hidden;
+}
+
+.cameraPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.recordingTimer {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 20px;
+}
+
+.cameraError {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ef4444;
+  font-size: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.cameraControls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px;
+  flex-shrink: 0;
+}
+
+.recordBtn {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 4px solid #ef4444;
+  background: none;
+  font-size: 26px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.recordBtn:hover { background: rgba(239,68,68,0.1); }
+.recordBtnActive {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+
+.recordLabel {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* ── EDIT STEP ── */
+.editStep {
+  display: flex;
+  flex-direction: row;  /* 2 cột: video | controls */
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Cột trái: video */
+.editLeft {
+  flex: 0 0 auto;
+  width: 300px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.editPreviewWrap {
+  position: relative;
+  width: 100%;
+  /* 9:16 aspect ratio — xem được toàn bộ video dọc */
+  aspect-ratio: 9 / 16;
+  max-height: calc(96vh - 0px);
+  overflow: hidden;
+}
+
+.editPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* contain để thấy toàn bộ video, không bị cắt */
+  display: block;
+}
+
+.audioOverlay {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0,0,0,0.45);
+  padding: 4px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Cột phải: header + tabs + panels */
+.editRight {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+}
+
+.editHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.nextBtn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0095f6;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.12s;
+}
+.nextBtn:hover { background: var(--hover); }
+
+.editPreviewWrap {
+  position: relative;
+  background: #000;
+  flex-shrink: 0;
+  /* Khung to hơn, tự co giãn theo chiều cao màn hình: tối thiểu 320px, ~50vh, tối đa 480px */
+  height: clamp(320px, 50vh, 480px);
+  overflow: hidden;
+}
+
+.editPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.audioOverlay {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0,0,0,0.45);
+  padding: 4px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Edit tabs */
+.editTabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.editTab {
+  flex: 1;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.editTab:hover { color: var(--ink); }
+.editTabActive { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* ── Trim ── */
+.trimPanel {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.trimInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.trimDuration {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.trimTrack {
+  position: relative;
+  height: 36px;
+  background: var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.trimFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #0095f6;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.trimHandle {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 36px;
+  background: #fff;
+  border: 2px solid #0095f6;
+  border-radius: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  z-index: 2;
+}
+.trimHandle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 14px;
+  background: #0095f6;
+  border-radius: 2px;
+}
+
+.trimHint {
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.oversizedWarning {
+  background: rgba(251, 146, 60, 0.15);
+  border: 1px solid rgba(251, 146, 60, 0.45);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #fb923c;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.exportBtn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 10px;
+  background: #f97316;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.exportBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+.exportBtn:not(:disabled):hover { opacity: 0.88; }
+
+/* Progress overlay shown during trim re-encoding */
+.trimProgressOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+}
+
+.trimProgressBox {
+  background: var(--bg-elevated);
+  border-radius: 16px;
+  padding: 28px 24px;
+  width: calc(100% - 48px);
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  text-align: center;
+}
+
+.trimProgressTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.trimProgressTrack {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.trimProgressFill {
+  height: 100%;
+  border-radius: 4px;
+  background: #f97316;
+  transition: width 0.3s ease;
+}
+
+.trimProgressPct {
+  font-size: 22px;
+  font-weight: 800;
+  color: #f97316;
+}
+
+.trimProgressHint {
+  font-size: 12px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+/* ── Filter tab ── */
+.filterPanel {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  flex: 1;
+  align-items: flex-start;
+  scrollbar-width: thin;
+}
+.filterPanel::-webkit-scrollbar { height: 4px; }
+.filterPanel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.filterItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.filterItem:hover { background: var(--hover); }
+.filterActive .filterThumbWrap { outline: 2px solid #0095f6; outline-offset: 2px; }
+
+.filterThumbWrap {
+  width: 70px;
+  height: 100px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+
+.filterThumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.filterName {
+  font-size: 11px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.filterActive .filterName { color: #0095f6; font-weight: 700; }
+
+/* ── Music tab ── */
+.musicPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  gap: 10px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.musicSectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+/* Track list */
+.trackList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trackItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.12s;
+  position: relative;
+  border: 1px solid transparent;
+}
+.trackItem:hover { background: var(--hover); }
+.trackSelected {
+  background: color-mix(in srgb, #0095f6 10%, transparent);
+  border-color: #0095f6;
+}
+
+.trackArt {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.trackNote { font-size: 18px; }
+
+.trackInfo { flex: 1; min-width: 0; }
+.trackName { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trackMeta { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.trackArtist { font-size: 11px; color: var(--ink-muted); }
+.trackGenreBadge {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: var(--hover);
+  border-radius: 20px;
+  color: var(--ink-muted);
+}
+
+.trackRight { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.trackDuration { font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+.trackPlayBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+}
+.trackPlayBtn:hover { background: var(--hover); }
+.trackPlayBtnActive { background: #0095f6; border-color: #0095f6; color: #fff; }
+
+.trackCheck {
+  position: absolute;
+  right: 46px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0095f6;
+}
+
+/* Divider */
+.musicDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+.musicDivider::before, .musicDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.audioUploadBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.audioUploadBtn:hover { border-color: #0095f6; color: #0095f6; background: color-mix(in srgb, #0095f6 5%, transparent); }
+
+.audioSelected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.audioInfo { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.audioIcon { font-size: 24px; flex-shrink: 0; }
+.audioName { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.audioSize { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+
+.audioActions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+.audioPlayBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+.audioPlayBtn:hover { background: var(--hover); }
+
+.audioRemoveBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.12s, background 0.12s;
+}
+.audioRemoveBtn:hover { color: #ef4444; background: rgba(239,68,68,0.08); }
+
+/* ── DETAILS STEP ── */
+.detailsStep {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.detailsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.detailsPreview {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.detailsMiniVideo {
+  width: 64px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.detailsPreviewMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.metaTag {
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  color: var(--ink-muted);
+}
+
+.detailsField { padding: 14px 16px 4px; }
+.detailsLabel { display: block; font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+
+.captionInput {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--ink);
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+  transition: border-color 0.15s;
+}
+.captionInput:focus { border-color: var(--ink-muted); }
+
+.captionCount { font-size: 11px; color: var(--ink-muted); text-align: right; margin-top: 4px; }
+
+.privacyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.privacyLabel { font-size: 14px; font-weight: 600; color: var(--ink); }
+.privacyDesc { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+
+.toggle {
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  border: none;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggleOn { background: #0095f6; }
+.toggleKnob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.toggleOn .toggleKnob { left: 23px; }
+
+.postBtn {
+  margin: 14px 16px 20px;
+  padding: 13px;
+  background: #0095f6;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.postBtn:hover { background: #0081d6; }
+.postBtn:disabled { opacity: 0.6; cursor: default; }
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .modal { max-width: 100%; border-radius: 0; max-height: 100vh; }
+  .editModal { max-width: 100%; max-height: 100vh; }
+  .backdrop { padding: 0; }
+
+  /* Mobile: đổi lại thành cột dọc */
+  .editStep { flex-direction: column; }
+  .editLeft { width: 100%; flex: 0 0 auto; }
+  .editPreviewWrap { aspect-ratio: 9 / 16; max-height: 55vh; }
+  .editRight { border-left: none; border-top: 1px solid var(--border); }
+}

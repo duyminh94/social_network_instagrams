@@ -1,0 +1,187 @@
+/* ===================== StoryBar ===================== */
+.storyBar { display: flex; gap: 14px; padding: 16px; overflow-x: auto; border-radius: var(--ig-radius); margin-bottom: 24px; }
+.storyBar::-webkit-scrollbar { display: none; }
+.storyItem { width: 72px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; flex: 0 0 72px; }
+.storyAvatarSlot { width: 66px; height: 66px; display: flex; align-items: center; justify-content: center; flex: 0 0 66px; }
+.storyName { width: 72px; font-size: 12px; line-height: 16px; color: var(--ig-text); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Own story bubble — wrapper dùng position:relative để đặt nút "+" */
+.myStoryWrapper { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Nút "+" ở góc dưới phải của avatar */
+.addStoryBtn { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--ig-blue, #0095f6); border: 2px solid var(--ig-white, #fff); color: #fff; font-size: 13px; font-weight: 700; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; z-index: 1; }
+.addStoryBtn:hover { background: #0080d6; }
+
+/* ===================== Upload Modal ===================== */
+.uploadOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 9998; display: flex; align-items: center; justify-content: center; }
+.uploadModal { background: var(--ig-white); border-radius: 12px; width: 90%; max-width: 420px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.uploadModalHeader { display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: 600; color: var(--ig-text); }
+.uploadCloseBtn { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--ig-text-light); padding: 2px 6px; }
+.uploadCloseBtn:hover { color: var(--ig-text); }
+
+/* Preview ảnh / video trước khi đăng */
+.uploadPreviewWrapper { display: flex; justify-content: center; background: var(--ig-bg); border-radius: 8px; overflow: hidden; max-height: 360px; }
+.uploadPreview { max-width: 100%; max-height: 360px; object-fit: contain; display: block; }
+
+/* Action buttons */
+.allowCommentRow { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--ig-text); user-select: none; }
+.allowCommentRow input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--ig-blue, #0095f6); }
+.uploadActions { display: flex; gap: 10px; justify-content: flex-end; }
+.cancelBtn { background: none; border: 1px solid var(--ig-border); border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ig-text); }
+.cancelBtn:hover { background: var(--ig-bg); }
+.submitBtn { background: var(--ig-blue, #0095f6); border: none; border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 14px; font-weight: 600; color: #fff; }
+.submitBtn:hover:not(:disabled) { background: #0080d6; }
+.submitBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ===================== StoryViewer ===================== */
+.viewer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: #1a1a1a;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 88px;
+  box-sizing: border-box;
+}
+
+.storyFrame {
+  position: relative;
+  height: min(92vh, 900px);
+  aspect-ratio: 9 / 16;
+  max-width: min(620px, calc(100vw - 180px));
+  overflow: hidden;
+  background: #111;
+  border-radius: 8px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  z-index: 2;
+}
+
+.viewerLogo { position: absolute; top: 22px; left: 18px; z-index: 10006; border: none; background: transparent; padding: 0; cursor: pointer; }
+
+.storySidePreview { position: absolute; top: 50%; width: 250px; height: 55vh; max-height: 470px; min-height: 330px; transform: translateY(-50%); border: none; border-radius: 8px; overflow: hidden; padding: 0; background: #222; cursor: pointer; opacity: 0.52; z-index: 1; box-shadow: 0 16px 50px rgba(0,0,0,0.35); }
+.storySidePreviewLeft { left: max(32px, calc(50% - min(310px, 31vw) - 310px)); }
+.storySidePreviewRight { right: max(32px, calc(50% - min(310px, 31vw) - 310px)); }
+.storySidePreview:hover { opacity: 0.72; }
+.storySideMedia { width: 100%; height: 100%; object-fit: cover; display: block; filter: blur(1px) brightness(0.75); transform: scale(1.04); }
+.storySideShade { position: absolute; inset: 0; background: radial-gradient(circle at center, rgba(0,0,0,0.05), rgba(0,0,0,0.55)); }
+.storySideUser { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+.storySideUser strong { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; line-height: 20px; }
+.storySideUser span { font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.92); }
+
+.viewerMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Nút qua/lại story nằm ngoài khung story, giống Instagram */
+.storyNavPrev,
+.storyNavNext { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 46px; border-radius: 50%; border: none; background: rgba(255,255,255,0.94); color: #111; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10005; box-shadow: 0 6px 20px rgba(0,0,0,0.25); }
+.storyNavPrev { left: max(72px, calc(50% - min(310px, 31vw) - 72px)); }
+.storyNavNext { right: max(72px, calc(50% - min(310px, 31vw) - 72px)); }
+.storyNavPrev:hover:not(:disabled),
+.storyNavNext:hover:not(:disabled) { background: #fff; transform: translateY(-50%) scale(1.04); }
+.storyNavPrev:disabled,
+.storyNavNext:disabled { opacity: 0.25; cursor: default; }
+
+/* Thanh tiến trình ở trên cùng */
+.progress { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 4px; padding: 12px; }
+.progressBar { flex: 1; height: 2px; background: rgba(255,255,255,0.4); border-radius: 2px; overflow: hidden; }
+.progressFill { height: 100%; background: white; animation: storyProgress 5s linear forwards; }
+@keyframes storyProgress { from { width: 0%; } to { width: 100%; } }
+
+/* Header: avatar + tên + thời gian */
+.viewerHeader { position: absolute; top: 32px; left: 16px; display: flex; align-items: center; gap: 10px; z-index: 10000; }
+
+/* Nút đóng viewer */
+.closeBtn { position: absolute; top: 18px; right: 22px; background: rgba(255,255,255,.08); border: none; color: white; font-size: 24px; cursor: pointer; z-index: 10000; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.closeBtn:hover { background: rgba(255,255,255,.16); }
+
+/* Nút xóa — bên trái nút đóng, chỉ hiện với chủ story */
+.deleteStoryBtn { position: absolute; top: 12px; right: 56px; background: rgba(0,0,0,0.45); border: none; color: white; font-size: 16px; cursor: pointer; z-index: 10000; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+.deleteStoryBtn:hover { background: rgba(200,30,30,0.75); }
+.deleteStoryBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Nút play/pause story */
+.playStoryBtn { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(0,0,0,0.45); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10000; }
+.playStoryBtn:hover { background: rgba(255,255,255,0.16); }
+
+/* Reply story + tim + gửi */
+.storyActions { position: absolute; left: 18px; right: 18px; bottom: 18px; min-height: 50px; display: flex; align-items: center; gap: 14px; z-index: 10001; box-sizing: border-box; }
+.storyActionsOwn { bottom: 64px; }
+.storyIconBtn,
+.storyLikeBtnActive,
+.storySendBtn { width: 42px; height: 42px; border-radius: 50%; border: none; background: transparent; color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; flex: 0 0 42px; }
+.storyIconBtn:hover,
+.storySendBtn:hover:not(:disabled),
+.storyLikeBtnActive:hover:not(:disabled) { background: rgba(255,255,255,0.12); }
+.storyLikeBtnActive { color: #ff3040; }
+.storyIconBtn:disabled,
+.storyLikeBtnActive:disabled,
+.storySendBtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.storyActionCount { min-width: 14px; color: #fff; font-size: 13px; font-weight: 700; line-height: 1; }
+.storyCommentForm { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.commentsOffNote { flex: 1; min-width: 0; color: rgba(255,255,255,0.78); font-size: 14px; font-style: italic; }
+.storyCommentInput { width: 100%; height: 48px; border: 2px solid rgba(255,255,255,0.9); border-radius: 999px; background: rgba(0,0,0,0.12); color: #fff; outline: none; padding: 0 20px; font-size: 15px; font-weight: 600; box-sizing: border-box; }
+.storyCommentInput::placeholder { color: rgba(255,255,255,0.78); }
+.storyCommentInput:focus { border-color: #fff; background: rgba(0,0,0,0.22); }
+.storyCommentsPanel { position: absolute; left: 14px; right: 14px; bottom: 68px; max-height: 210px; overflow-y: auto; border-radius: 14px; background: rgba(0,0,0,0.72); backdrop-filter: blur(14px); color: #fff; z-index: 10002; padding: 10px 0; box-shadow: 0 12px 36px rgba(0,0,0,0.35); }
+.storyCommentsPanelOwn { bottom: 116px; }
+.storyCommentsHeader { padding: 0 14px 8px; font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.95); }
+.storyCommentsEmpty { padding: 18px 14px; text-align: center; color: rgba(255,255,255,0.7); font-size: 13px; }
+.storyCommentRow { display: flex; align-items: flex-start; gap: 9px; padding: 8px 14px; }
+.storyCommentBody { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.storyCommentName { font-size: 13px; font-weight: 700; color: #fff; }
+.storyCommentText { font-size: 13px; line-height: 18px; color: rgba(255,255,255,0.9); word-break: break-word; }
+
+/* Thanh người xem ở cuối màn hình — chỉ chủ story thấy */
+.viewersBar { position: absolute; bottom: 0; left: 0; right: 0; padding: 16px 20px; display: flex; align-items: center; gap: 8px; color: white; font-size: 14px; cursor: pointer; background: linear-gradient(transparent, rgba(0,0,0,0.55)); z-index: 10001; }
+.viewersBar:hover { background: linear-gradient(transparent, rgba(0,0,0,0.75)); }
+
+/* Panel danh sách người xem — slide up từ dưới */
+.viewersPanel { position: absolute; bottom: 0; left: 0; right: 0; max-height: 60vh; background: var(--ig-white); border-radius: 16px 16px 0 0; z-index: 10002; overflow-y: auto; }
+.viewersPanelHeader { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; font-weight: 600; font-size: 15px; color: var(--ig-text); border-bottom: 1px solid var(--ig-border); position: sticky; top: 0; background: var(--ig-white); }
+.closePanelBtn { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--ig-text-light); padding: 4px 6px; }
+.closePanelBtn:hover { color: var(--ig-text); }
+.viewersEmpty { text-align: center; padding: 32px 20px; color: var(--ig-text-light); font-size: 14px; }
+.viewerRow { display: flex; align-items: center; gap: 12px; padding: 10px 20px; }
+.viewerRow:hover { background: var(--ig-bg); }
+.viewerName { font-size: 14px; font-weight: 500; color: var(--ig-text); }
+
+/* ===================== Confirm Dialog (xóa story) ===================== */
+.confirmOverlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); z-index: 10003; display: flex; align-items: center; justify-content: center; }
+.confirmDialog { background: var(--ig-white); border-radius: 12px; padding: 24px 28px; min-width: 260px; text-align: center; }
+.confirmText { margin: 0 0 20px; font-size: 15px; font-weight: 500; color: var(--ig-text); }
+.confirmActions { display: flex; gap: 10px; justify-content: center; }
+.confirmCancelBtn { flex: 1; padding: 9px 0; border: 1px solid var(--ig-border); border-radius: 8px; background: none; font-size: 14px; font-weight: 600; color: var(--ig-text); cursor: pointer; }
+.confirmCancelBtn:hover { background: var(--ig-bg); }
+.confirmDeleteBtn { flex: 1; padding: 9px 0; border: none; border-radius: 8px; background: #ff4d5e; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; }
+.confirmDeleteBtn:hover:not(:disabled) { background: #e03040; }
+.confirmDeleteBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+  .viewer {
+    left: 0;
+    z-index: 9999;
+    padding: 0;
+  }
+
+  .storyFrame {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    border-radius: 0;
+  }
+
+  .closeBtn {
+    top: 14px;
+    right: 14px;
+    background: rgba(0,0,0,.35);
+  }
+}

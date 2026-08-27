@@ -1,0 +1,145 @@
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: stretch;
+  background: var(--bg);
+}
+
+/* ── Split layout ── */
+.splitPanel {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Left image panel */
+.imageSide {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.imageSide img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.imageOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.68) 0%,
+    rgba(20, 20, 40, 0.55) 60%,
+    rgba(0, 149, 246, 0.25) 100%
+  );
+}
+
+.imageBranding {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 40px;
+  color: #fff;
+}
+
+.imageBranding h1 {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 12px;
+  line-height: 1.2;
+}
+
+.imageBranding p {
+  font-size: 16px;
+  opacity: 0.85;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+/* Right form panel */
+.formSide {
+  width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+}
+
+.formSideInner {
+  width: 100%;
+  max-width: 360px;
+}
+
+/* ── Legacy single-column (kept for ResendVerification etc.) ── */
+.box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--ig-radius);
+  padding: 40px 40px 30px;
+  width: 100%; max-width: 400px;
+}
+.logo {
+  text-align: center;
+  margin-bottom: 28px;
+  display: flex; align-items: center; justify-content: center;
+}
+.divider {
+  display: flex; align-items: center; gap: 16px;
+  margin: 16px 0;
+  color: var(--ink-muted); font-size: 13px; font-weight: 600;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.switchText {
+  text-align: center;
+  border-top: 1px solid var(--border);
+  margin-top: 16px; padding-top: 16px;
+  font-size: 14px; color: var(--ink-muted);
+}
+.switchText a { color: var(--accent); font-weight: 600; }
+
+/* Panel branding nền gradient (không dùng ảnh) — trang quên mật khẩu */
+.gradientSide {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(56, 151, 240, 0.45) 0%, transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(15, 118, 110, 0.4) 0%, transparent 45%),
+    linear-gradient(135deg, #0b1220 0%, #111827 55%, #0f2438 100%);
+}
+
+/* Icon badge cho trạng thái "đã gửi email" ở trang quên mật khẩu */
+.sentIcon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: rgba(56, 151, 240, 0.12);
+  border: 1px solid rgba(56, 151, 240, 0.3);
+}
+
+/* ── Responsive: hide image on small screens ── */
+@media (max-width: 768px) {
+  .imageSide { display: none; }
+  .formSide {
+    width: 100%;
+    border-left: none;
+    padding: 32px 16px;
+  }
+}

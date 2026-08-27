@@ -1,0 +1,39 @@
+{
+  "name": "instagram-clone-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "seed": "node seedMaster.js",
+    "seed:master": "node seedMaster.js",
+    "seed:all": "node seedAll.js",
+    "seed:reels": "node seedReels.js",
+    "seed:aptech": "node seedAptech.js",
+    "seed:interactions": "node seedMoreInteractions.js",
+    "seed:extra": "node seedExtraUsers.js",
+    "seed:bulk": "node seedBulkUsers.js",
+    "seed:aptech-chat": "node seedAptechChat.js",
+    "seed:verifications": "node seedVerifications.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^7.3.1",
+    "google-auth-library": "^10.6.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.4.1",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^8.0.7",
+    "sharp": "^0.34.5",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.3"
+  }
+}

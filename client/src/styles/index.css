@@ -1,0 +1,101 @@
+:root {
+  --accent:         #3897f0;
+  --accent-hover:   #2d7fd4;
+  --bg:             #0e0e10;
+  --bg-elevated:    #16161a;
+  --border:         rgba(255,255,255,.08);
+  --ink:            #ffffff;
+  --ink-muted:      rgba(255,255,255,.55);
+  --hover:          rgba(255,255,255,.06);
+
+  --ig-primary:     #3897f0;
+  --ig-primary-dark:#2d7fd4;
+  --ig-bg:          #0e0e10;
+  --ig-white:       #16161a;
+  --ig-border:      rgba(255,255,255,.1);
+  --ig-text:        #ffffff;
+  --ig-text-light:  rgba(255,255,255,.55);
+  --ig-hover:       rgba(255,255,255,.06);
+  --ig-blue:        #3897f0;
+  --ig-radius:      8px;
+  --ig-radius-lg:   12px;
+}
+
+/* Giao diện sáng — gắn data-theme="light" lên <html> sẽ override bộ biến tối ở trên */
+[data-theme="light"] {
+  --accent:         #3897f0;
+  --accent-hover:   #2d7fd4;
+  --bg:             #ffffff;
+  --bg-elevated:    #f7f7f8;
+  --border:         rgba(0,0,0,.1);
+  --ink:            #1a1a1a;
+  --ink-muted:      rgba(0,0,0,.5);
+  --hover:          rgba(0,0,0,.05);
+
+  --ig-primary:     #3897f0;
+  --ig-primary-dark:#2d7fd4;
+  --ig-bg:          #fafafa;
+  --ig-white:       #ffffff;
+  --ig-border:      rgba(0,0,0,.12);
+  --ig-text:        #1a1a1a;
+  --ig-text-light:  rgba(0,0,0,.5);
+  --ig-hover:       rgba(0,0,0,.05);
+  --ig-blue:        #3897f0;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  scrollbar-width: none;
+}
+::-webkit-scrollbar { display: none; }
+
+a { color: inherit; text-decoration: none; }
+a:hover { color: inherit; }
+img { max-width: 100%; display: block; }
+
+.form-control, .form-select {
+  background-color: var(--bg-elevated) !important;
+  border-color: var(--border) !important;
+  color: var(--ink) !important;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(56,151,240,.25) !important;
+  background-color: var(--bg-elevated) !important;
+  color: var(--ink) !important;
+}
+.form-control::placeholder { color: var(--ink-muted) !important; }
+
+.btn-primary {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+.btn-primary:hover, .btn-primary:focus {
+  background-color: var(--accent-hover) !important;
+  border-color: var(--accent-hover) !important;
+}
+.btn-outline-primary {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.btn-outline-primary:hover {
+  background-color: var(--accent) !important;
+  color: #fff !important;
+}
+.text-primary { color: var(--accent) !important; }
+
+@keyframes aptechHeartBurst {
+  0%   { transform: scale(0); opacity: 1; }
+  60%  { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1.1); opacity: 0; }
+}
+@keyframes igSpin { to { transform: rotate(360deg); } }

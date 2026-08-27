@@ -1,0 +1,19 @@
+.env
+.claude/
+PLAN.md
+.DS_Store
+Instagrams/
+Instagram_Clone_API.postman_collection.json
+workflows/
+AGENTS.md
+# Dependencies
+
+node_modules/
+
+# Bỏ qua thư mục node_modules trong thư mục server
+server/node_modules/
+server/uploads/
+client/dist/
+# Bỏ qua thư mục node_modules trong thư mục client (nếu có)
+client/node_modules/
+
