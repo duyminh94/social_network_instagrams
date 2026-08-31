@@ -26,8 +26,10 @@ const StoryLike = require('../models/StoryLike');
 const StoryComment = require('../models/StoryComment');
 const UserChangeLog = require('../models/UserChangeLog');
 const VerificationRequest = require('../models/VerificationRequest');
+const Appeal = require('../models/Appeal');
 const { createNotification } = require('../utils/notification');
 const { sendBanNotificationEmail } = require('../utils/mailer');
+const { applyPostsCountDelta } = require('../utils/postsCount');
 
 // Gửi email báo khóa tài khoản + hướng dẫn kháng cáo — KHÔNG chặn luồng ban nếu mail lỗi
 async function notifyBanByEmail(user, reason) {
@@ -522,7 +524,7 @@ async function handleReport(req, res, next) {
         if ('deletedBy' in content) content.deletedBy = req.user.id;
         await content.save();
         if (report.targetType === 'post') {
-          await User.findByIdAndUpdate(content.userId, { $inc: { postsCount: -1 } });
+          await applyPostsCountDelta(content, -1);
         }
       }
     }
@@ -565,7 +567,7 @@ async function deletePost(req, res, next) {
     await post.save();
 
     // Giảm postsCount trên User — giữ đồng bộ với số bài thực tế
-    await User.findByIdAndUpdate(post.userId, { $inc: { postsCount: -1 } });
+    await applyPostsCountDelta(post, -1);
 
     await logAction(req.user.id, 'delete_post', req.params.id, 'post', req.body.note || '');
     await createNotification(post.userId, req.user.id, 'post_removed', post._id, 'post');
@@ -738,6 +740,97 @@ async function handleVerificationRequest(req, res, next) {
   }
 }
 
+// GET /api/admin/appeals?status=&page=&limit=
+// Danh sách kháng cáo của người dùng (bị khoá tài khoản / bị gỡ nội dung)
+async function getAppeals(req, res, next) {
+  try {
+    var { page, limit, skip } = getPagination(req, 20);
+
+    var filter = {};
+    if (req.query.status) {
+      filter.status = req.query.status;
+    }
+
+    var total = await Appeal.countDocuments(filter);
+    var totalPages = Math.ceil(total / limit);
+
+    var appeals = await Appeal.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('userId', 'username fullName avatarUrl isBanned')
+      .populate('reviewedBy', 'username')
+      .lean();
+
+    return res.json({ appeals: appeals, page, limit, total, totalPages });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// PATCH /api/admin/appeals/:id
+// Body: { action: 'approve' | 'reject', note? }
+// approve → khôi phục đối tượng bị xử lý (mở khoá tài khoản hoặc bỏ xoá nội dung)
+async function handleAppeal(req, res, next) {
+  try {
+    var action = req.body.action;
+    var note = String(req.body.note || '').trim();
+
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({ message: 'Hành động không hợp lệ (approve hoặc reject)' });
+    }
+
+    var appeal = await Appeal.findById(req.params.id);
+    if (!appeal) {
+      return res.status(404).json({ message: 'Không tìm thấy kháng cáo' });
+    }
+    if (appeal.status !== 'pending') {
+      return res.status(400).json({ message: 'Kháng cáo này đã được xử lý' });
+    }
+
+    if (action === 'approve') {
+      // Khôi phục đúng loại đối tượng đã bị xử lý
+      if (appeal.targetType === 'account') {
+        await User.findByIdAndUpdate(appeal.targetId, { isBanned: false });
+      } else if (appeal.targetType === 'post') {
+        await Post.findByIdAndUpdate(appeal.targetId, { isDeleted: false, deletedBy: null });
+      } else if (appeal.targetType === 'reel') {
+        await Reel.findByIdAndUpdate(appeal.targetId, { isDeleted: false, deletedBy: null });
+      } else if (appeal.targetType === 'comment') {
+        await Comment.findByIdAndUpdate(appeal.targetId, { isDeleted: false, deletedBy: null });
+      }
+    }
+
+    appeal.status = action === 'approve' ? 'approved' : 'rejected';
+    appeal.reviewedBy = req.user.id;
+    appeal.reviewNote = note;
+    appeal.reviewedAt = new Date();
+    await appeal.save();
+
+    // Báo kết quả cho người gửi kháng cáo
+    await createNotification(
+      appeal.userId,
+      req.user.id,
+      action === 'approve' ? 'appeal_approved' : 'appeal_rejected',
+      appeal._id,
+      'appeal',
+      note
+    );
+
+    await AdminLog.create({
+      adminId: req.user.id,
+      action: action === 'approve' ? 'approve_appeal' : 'reject_appeal',
+      targetId: appeal._id,
+      targetType: 'appeal',
+      note: note,
+    });
+
+    return res.json({ message: 'Đã xử lý kháng cáo', appeal: appeal });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   getUsers, getUserDetail, getUserActivity,
   banUser, unbanUser,
@@ -746,4 +839,5 @@ module.exports = {
   getVerificationRequests, handleVerificationRequest,
   deletePost, deleteComment, deleteStory,
   getLogs, getStats,
+  getAppeals, handleAppeal,
 };

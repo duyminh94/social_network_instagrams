@@ -2,20 +2,39 @@
 // Trang hashtag: 2 tab — Bài viết và Reels công khai gắn 1 hashtag (#tag).
 // Cùng kiểu lưới với Explore.
 
-import { useState } from 'react'
+import { useState, useContext } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { AuthContext } from '../../context/AuthContext'
 import { getPostsByHashtag } from '../../features/post/postAPI'
 import { getReelsByHashtag } from '../../features/reel/reelAPI'
+import { getHashtag, followHashtag, unfollowHashtag } from '../../features/hashtag/hashtagAPI'
 import PostModal from '../../components/post/PostModal'
 import MediaTypeBadge from '../../components/post/MediaTypeBadge'
 import Spinner from '../../components/common/Spinner'
+import Button from '../../components/common/Button'
 
 export default function HashtagPage() {
   var { tag } = useParams()
   var navigate = useNavigate()
+  var queryClient = useQueryClient()
+  const { isAuthenticated } = useContext(AuthContext)
   const [selectedPost, setSelectedPost] = useState(null)
   const [activeTab, setActiveTab] = useState('posts')
+
+  // Thông tin hashtag: số người theo dõi + mình đã theo dõi chưa
+  const { data: hashtagData } = useQuery({
+    queryKey: ['hashtag-info', tag],
+    queryFn: function () {
+      return getHashtag(tag).then(function (r) { return r.data })
+    },
+    enabled: !!tag,
+  })
+
+  const hashtag = hashtagData?.hashtag
+  const isFollowing = !!hashtag?.isFollowing
+  const followersCount = hashtag?.followersCount || 0
 
   const { data: postData, isLoading: postLoading } = useQuery({
     queryKey: ['hashtag', tag],
@@ -41,6 +60,30 @@ export default function HashtagPage() {
   const isPostsTab = activeTab === 'posts'
   const isLoading = isPostsTab ? postLoading : reelLoading
   const isEmpty = !isLoading && (isPostsTab ? posts.length === 0 : reels.length === 0)
+
+  // Theo dõi / bỏ theo dõi hashtag — dùng chung 1 mutation, rẽ nhánh theo trạng thái hiện tại
+  var followMutation = useMutation({
+    mutationFn: function () {
+      return isFollowing ? unfollowHashtag(tag) : followHashtag(tag)
+    },
+    onSuccess: function () {
+      toast.success(isFollowing ? 'Đã bỏ theo dõi #' + tag : 'Đã theo dõi #' + tag)
+      // Làm mới thông tin tag hiện tại và danh sách tag đang theo dõi
+      queryClient.invalidateQueries({ queryKey: ['hashtag-info', tag] })
+      queryClient.invalidateQueries({ queryKey: ['hashtags-following'] })
+    },
+    onError: function (error) {
+      toast.error(error.response?.data?.message || 'Không thực hiện được, thử lại sau')
+    },
+  })
+
+  function handleToggleFollow() {
+    if (!isAuthenticated) {
+      navigate('/login')
+      return
+    }
+    followMutation.mutate()
+  }
 
   // Style nút tab — tab đang chọn có gạch chân đậm
   function tabStyle(active) {
@@ -69,13 +112,24 @@ export default function HashtagPage() {
 
   return (
     <div style={{ maxWidth: 935, margin: '0 auto', padding: '24px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--ig-text)', margin: 0 }}>
           #{tag}
         </h1>
         <span style={{ fontSize: 14, color: 'var(--ig-text-light)' }}>
           {postTotal + reelTotal} nội dung
         </span>
+        <span style={{ fontSize: 14, color: 'var(--ig-text-light)' }}>
+          {followersCount} người theo dõi
+        </span>
+        <Button
+          size="sm"
+          variant={isFollowing ? 'outline-secondary' : 'primary'}
+          loading={followMutation.isPending}
+          onClick={handleToggleFollow}
+        >
+          {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
+        </Button>
       </div>
 
       {/* Tabs */}

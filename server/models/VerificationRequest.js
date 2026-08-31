@@ -22,4 +22,9 @@ const verificationRequestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Kiểm tra "user này còn yêu cầu pending không" chạy mỗi lần user gửi yêu cầu mới
+verificationRequestSchema.index({ userId: 1, status: 1, createdAt: -1 });
+// Admin lọc danh sách theo trạng thái, mới nhất lên đầu
+verificationRequestSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model('VerificationRequest', verificationRequestSchema);

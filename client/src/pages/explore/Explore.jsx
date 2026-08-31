@@ -4,13 +4,17 @@
 // Tìm kiếm user đã được chuyển sang panel Search ở sidebar,
 // nên trang này chỉ giữ grid Explore để tránh trùng UI.
 
-import { useState } from 'react'
+import { useState, useContext } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { AuthContext } from '../../context/AuthContext'
 import { getExplore } from '../../features/post/postAPI'
+import { getTrendingHashtags, getFollowedHashtags } from '../../features/hashtag/hashtagAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
 import PostModal from '../../components/post/PostModal'
 import MediaTypeBadge from '../../components/post/MediaTypeBadge'
 import Box from '@mui/material/Box'
+import Chip from '@mui/material/Chip'
 import { GridSkeleton } from '../../components/common/Skeletons'
 import * as profileS from '../profile/profileStyles'
 import { staggerIn } from '../../theme/animations'
@@ -18,6 +22,57 @@ import { staggerIn } from '../../theme/animations'
 export default function Explore() {
   const [selectedPost, setSelectedPost] = useState(null)
   var { t } = useLanguage()
+  var navigate = useNavigate()
+  const { isAuthenticated } = useContext(AuthContext)
+
+  // Hashtag đang hot — hiển thị thành dải chip phía trên grid
+  const { data: trendingData } = useQuery({
+    queryKey: ['hashtags-trending'],
+    queryFn: function () {
+      return getTrendingHashtags(12).then(function (r) { return r.data })
+    },
+  })
+
+  // Hashtag mình đang theo dõi — chỉ gọi khi đã đăng nhập (API yêu cầu token)
+  const { data: followingData } = useQuery({
+    queryKey: ['hashtags-following'],
+    queryFn: function () {
+      return getFollowedHashtags(1, 20).then(function (r) { return r.data })
+    },
+    enabled: isAuthenticated,
+  })
+
+  const trendingTags = trendingData?.hashtags || []
+  const followingTags = followingData?.hashtags || []
+
+  // Một dải chip hashtag — dùng chung cho cả mục nổi bật lẫn mục đang theo dõi
+  function renderTagRow(title, tags) {
+    if (tags.length === 0) return null
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <div style={{
+          marginBottom: 10, color: 'var(--ig-text-light)',
+          fontSize: 12, fontWeight: 600,
+          textTransform: 'uppercase', letterSpacing: 1,
+        }}>
+          {title}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {tags.map(function (item) {
+            return (
+              <Chip
+                key={item._id || item.name}
+                label={'#' + item.name}
+                size="small"
+                clickable
+                onClick={function () { navigate('/hashtag/' + encodeURIComponent(item.name)) }}
+              />
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   // Query bài viết explore — chạy luôn khi vào trang
   const { data: exploreData, isLoading: exploreLoading } = useQuery({
@@ -40,6 +95,10 @@ export default function Explore() {
       }}>
         {t.explore.title}
       </h6>
+
+      {/* Hai dải hashtag — mỗi dải tự ẩn khi rỗng để không chiếm chỗ trống */}
+      {renderTagRow(t.explore.followingTags, followingTags)}
+      {renderTagRow(t.explore.trendingTags, trendingTags)}
 
       {exploreLoading ? (
         <GridSkeleton count={12} gap="3px" />

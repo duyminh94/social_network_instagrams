@@ -54,6 +54,7 @@ function notifText(notif, t) {
     case 'follow':         return t.notifications.followed
     case 'follow_request': return t.notifications.followRequest
     case 'mention':        return t.notifications.mentioned
+    case 'photo_tag':      return t.notifications.taggedYouInPhoto
     case 'reply':          return t.notifications.replied
     case 'account_banned': return t.notifications.banned
     case 'post_removed':   return t.notifications.postRemoved

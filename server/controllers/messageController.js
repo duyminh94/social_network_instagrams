@@ -21,6 +21,7 @@ const Message = require('../models/Message');
 const Block = require('../models/Block');
 const Follow = require('../models/Follow');
 const User = require('../models/User');
+const MessageReaction = require('../models/MessageReaction');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 
 var BANNED_CHAT_MESSAGE = 'Người dùng này đã bị khóa';
@@ -71,25 +72,49 @@ async function getConversations(req, res, next) {
     var totalPages = Math.ceil(total / limit);
 
     // Phân trang theo lastActivityAt — đúng thứ tự: chat mới nhất lên đầu
+    // populate lastMessageId: lấy luôn tin nhắn cuối trong cùng 1 query,
+    // không phải bắn thêm 1 query Message cho từng conversation (N+1)
     var conversations = await Conversation.find({ _id: { $in: conversationIds } })
       .sort({ lastActivityAt: -1 })
       .skip(skip)
       .limit(limit)
+      .populate({
+        path: 'lastMessageId',
+        populate: { path: 'senderId', select: 'username' },
+      })
       .lean();
 
-    // Ghép thêm members và tin nhắn cuối vào từng conversation
+    // Lấy toàn bộ thành viên của các conversation trong trang này bằng 1 query,
+    // rồi gom theo conversationId — thay cho vòng lặp query từng conversation
+    var pageConversationIds = conversations.map(function (c) { return c._id; });
+    var allMembers = await ConversationMember.find({ conversationId: { $in: pageConversationIds } })
+      .populate('userId', 'username fullName avatarUrl')
+      .lean();
+
+    var membersByConversation = {};
+    allMembers.forEach(function (m) {
+      var key = m.conversationId.toString();
+      if (!membersByConversation[key]) {
+        membersByConversation[key] = [];
+      }
+      membersByConversation[key].push(m);
+    });
+
+    // Ghép members và tin nhắn cuối vào từng conversation
     var result = [];
     for (var i = 0; i < conversations.length; i++) {
       var conv = conversations[i];
 
-      var members = await ConversationMember.find({ conversationId: conv._id })
-        .populate('userId', 'username fullName avatarUrl')
-        .lean();
+      var members = membersByConversation[conv._id.toString()] || [];
 
-      var lastMessage = await Message.findOne({ conversationId: conv._id, isDeleted: false })
-        .sort({ createdAt: -1 })
-        .populate('senderId', 'username')
-        .lean();
+      // lastMessageId đã được populate thành object Message đầy đủ
+      var lastMessage = conv.lastMessageId || null;
+      // Con trỏ có thể trỏ vào tin đã xóa mềm (trường hợp dữ liệu cũ) → không hiển thị
+      if (lastMessage && lastMessage.isDeleted) {
+        lastMessage = null;
+      }
+      // Không trả field thô ra client, chỉ giữ lastMessage cho gọn
+      delete conv.lastMessageId;
 
       // isUnread: tin nhắn cuối do người khác gửi và mới hơn lần cuối mình đọc
       var isUnread = false;
@@ -307,7 +332,37 @@ async function getMessages(req, res, next) {
       .limit(limit)
       .populate('senderId', 'username fullName avatarUrl')
       .populate('replyToId', 'content senderId')
+      .populate('forwardedFromUserId', 'username fullName')
       .lean();
+
+    // Gắn cảm xúc cho cả trang tin nhắn bằng 1 query, không hỏi từng tin một
+    var pageMessageIds = messages.map(function (m) { return m._id; });
+    var allReactions = await MessageReaction.find({ messageId: { $in: pageMessageIds } })
+      .populate('userId', 'username fullName avatarUrl')
+      .lean();
+
+    var reactionsByMessage = {};
+    allReactions.forEach(function (r) {
+      var key = r.messageId.toString();
+      if (!reactionsByMessage[key]) {
+        reactionsByMessage[key] = [];
+      }
+      reactionsByMessage[key].push({
+        user: r.userId,
+        reactionType: r.reactionType,
+      });
+    });
+
+    messages = messages.map(function (m) {
+      var list = reactionsByMessage[m._id.toString()] || [];
+      m.reactions = list;
+      // myReaction: cảm xúc của chính người đang xem, để bôi đậm đúng icon
+      var mine = list.find(function (r) {
+        return r.user && r.user._id.toString() === userId;
+      });
+      m.myReaction = mine ? mine.reactionType : null;
+      return m;
+    });
 
     // Cập nhật thời điểm user đọc tin nhắn gần nhất
     var now = new Date();
@@ -409,7 +464,10 @@ async function sendMessage(req, res, next) {
       sharedPostId,
     });
 
-    await Conversation.findByIdAndUpdate(conversationId, { lastActivityAt: new Date() });
+    await Conversation.findByIdAndUpdate(conversationId, {
+      lastActivityAt: new Date(),
+      lastMessageId: newMessage._id,
+    });
 
     var populated = await Message.findById(newMessage._id)
       .populate('senderId', 'username fullName avatarUrl')
@@ -487,7 +545,10 @@ async function sendMediaMessage(req, res, next) {
       messageType: messageType,
     });
 
-    await Conversation.findByIdAndUpdate(conversationId, { lastActivityAt: new Date() });
+    await Conversation.findByIdAndUpdate(conversationId, {
+      lastActivityAt: new Date(),
+      lastMessageId: newMessage._id,
+    });
 
     var populated = await Message.findById(newMessage._id)
       .populate('senderId', 'username fullName avatarUrl')
@@ -524,7 +585,30 @@ async function deleteMessage(req, res, next) {
     }
 
     message.isDeleted = true;
+    // Tin đã xoá thì không còn nằm trên thanh ghim nữa
+    message.isPinned = false;
+    message.pinnedAt = null;
+    message.pinnedBy = null;
     await message.save();
+
+    // Cảm xúc gắn với tin đã xoá là dữ liệu chết → dọn luôn
+    await MessageReaction.deleteMany({ messageId: message._id });
+
+    // Nếu vừa xóa đúng tin nhắn cuối thì con trỏ lastMessageId đang trỏ vào tin đã xóa
+    // → tìm tin chưa xóa mới nhất còn lại để trỏ lại, danh sách chat mới hiển thị đúng
+    var conv = await Conversation.findById(message.conversationId).select('lastMessageId').lean();
+    if (conv && String(conv.lastMessageId) === String(message._id)) {
+      var previousMessage = await Message.findOne({
+        conversationId: message.conversationId,
+        isDeleted: false,
+      })
+        .sort({ createdAt: -1 })
+        .select('_id')
+        .lean();
+      await Conversation.findByIdAndUpdate(message.conversationId, {
+        lastMessageId: previousMessage ? previousMessage._id : null,
+      });
+    }
 
     // Emit realtime để các thành viên khác ẩn tin nhắn ngay lập tức
     try {
@@ -709,7 +793,10 @@ async function removeMember(req, res, next) {
       messageType: 'system',
     });
 
-    await Conversation.findByIdAndUpdate(conversationId, { lastActivityAt: new Date() });
+    await Conversation.findByIdAndUpdate(conversationId, {
+      lastActivityAt: new Date(),
+      lastMessageId: noticeMessage._id,
+    });
 
     var populatedNotice = await Message.findById(noticeMessage._id)
       .populate('senderId', 'username fullName avatarUrl')
@@ -998,7 +1085,10 @@ async function deleteConversation(req, res, next) {
       content: leavingName + ' đã rời nhóm',
       messageType: 'system',
     });
-    await Conversation.findByIdAndUpdate(conversationId, { lastActivityAt: new Date() });
+    await Conversation.findByIdAndUpdate(conversationId, {
+      lastActivityAt: new Date(),
+      lastMessageId: leaveNotice._id,
+    });
     var populatedLeaveNotice = await Message.findById(leaveNotice._id)
       .populate('senderId', 'username fullName avatarUrl')
       .lean();
@@ -1069,6 +1159,449 @@ async function deleteGroup(req, res, next) {
   }
 }
 
+// Helper: kiểm tra user có phải thành viên đã chấp nhận của cuộc trò chuyện không.
+// Dùng chung cho các chức năng thả cảm xúc / ghim / biệt danh / chuyển tiếp.
+// Trả về membership nếu hợp lệ, null nếu không.
+async function getAcceptedMembership(conversationId, userId) {
+  var membership = await ConversationMember.findOne({
+    conversationId: conversationId,
+    userId: userId,
+    status: 'accepted',
+  });
+  return membership || null;
+}
+
+// Helper: emit event tới mọi thành viên đã chấp nhận của cuộc trò chuyện.
+// Lỗi socket không được làm hỏng request chính nên bọc try/catch.
+async function emitToMembers(conversationId, event, payload) {
+  try {
+    var socketModule = require('../index.js');
+    var members = await ConversationMember.find({
+      conversationId: conversationId,
+      status: 'accepted',
+    }).lean();
+    for (var i = 0; i < members.length; i++) {
+      socketModule.io.to(members[i].userId.toString()).emit(event, payload);
+    }
+  } catch (error) {
+    console.warn('Socket emit ' + event + ' thất bại:', error.message);
+  }
+}
+
+// ────────────────────── THẢ CẢM XÚC TIN NHẮN ──────────────────────
+
+// POST /api/messages/:messageId/reactions
+// Body: { reactionType } — thả mới hoặc đổi cảm xúc đã thả
+async function reactToMessage(req, res, next) {
+  try {
+    var reactionType = req.body.reactionType || 'love';
+    var allowed = ['like', 'love', 'haha', 'wow', 'sad', 'angry'];
+    if (allowed.indexOf(reactionType) === -1) {
+      return res.status(400).json({ message: 'Loại cảm xúc không hợp lệ' });
+    }
+
+    var message = await Message.findOne({ _id: req.params.messageId, isDeleted: false });
+    if (!message) {
+      return res.status(404).json({ message: 'Tin nhắn không tồn tại' });
+    }
+
+    var membership = await getAcceptedMembership(message.conversationId, req.user.id);
+    if (!membership) {
+      return res.status(403).json({ message: 'Bạn không thuộc cuộc trò chuyện này' });
+    }
+
+    // Thả lại đúng cảm xúc đang có → hiểu là bỏ cảm xúc (bấm lại lần nữa để gỡ)
+    var existing = await MessageReaction.findOne({ messageId: message._id, userId: req.user.id });
+    if (existing && existing.reactionType === reactionType) {
+      await existing.deleteOne();
+      await emitToMembers(message.conversationId, 'message_reaction', {
+        messageId: message._id.toString(),
+        conversationId: message.conversationId.toString(),
+        userId: req.user.id,
+        reactionType: null,
+      });
+      return res.json({ message: 'Đã bỏ cảm xúc', reactionType: null });
+    }
+
+    // Chưa có thì tạo, có rồi thì đổi loại — mỗi user vẫn chỉ 1 bản ghi
+    await MessageReaction.updateOne(
+      { messageId: message._id, userId: req.user.id },
+      {
+        $set: { reactionType: reactionType },
+        $setOnInsert: { messageId: message._id, userId: req.user.id },
+      },
+      { upsert: true }
+    );
+
+    await emitToMembers(message.conversationId, 'message_reaction', {
+      messageId: message._id.toString(),
+      conversationId: message.conversationId.toString(),
+      userId: req.user.id,
+      reactionType: reactionType,
+    });
+
+    return res.status(201).json({ message: 'Đã thả cảm xúc', reactionType: reactionType });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// DELETE /api/messages/:messageId/reactions — gỡ cảm xúc của mình
+async function removeMessageReaction(req, res, next) {
+  try {
+    var message = await Message.findById(req.params.messageId);
+    if (!message) {
+      return res.status(404).json({ message: 'Tin nhắn không tồn tại' });
+    }
+
+    var deleted = await MessageReaction.deleteOne({ messageId: message._id, userId: req.user.id });
+    if (deleted.deletedCount === 0) {
+      return res.status(404).json({ message: 'Bạn chưa thả cảm xúc cho tin nhắn này' });
+    }
+
+    await emitToMembers(message.conversationId, 'message_reaction', {
+      messageId: message._id.toString(),
+      conversationId: message.conversationId.toString(),
+      userId: req.user.id,
+      reactionType: null,
+    });
+
+    return res.json({ message: 'Đã bỏ cảm xúc' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// GET /api/messages/:messageId/reactions — ai đã thả cảm xúc gì
+async function getMessageReactions(req, res, next) {
+  try {
+    var message = await Message.findById(req.params.messageId);
+    if (!message) {
+      return res.status(404).json({ message: 'Tin nhắn không tồn tại' });
+    }
+
+    var membership = await getAcceptedMembership(message.conversationId, req.user.id);
+    if (!membership) {
+      return res.status(403).json({ message: 'Bạn không thuộc cuộc trò chuyện này' });
+    }
+
+    var reactions = await MessageReaction.find({ messageId: message._id })
+      .sort({ createdAt: -1 })
+      .populate('userId', 'username fullName avatarUrl isTrusted')
+      .lean();
+
+    var normalized = reactions
+      .filter(function (r) { return r.userId; })
+      .map(function (r) {
+        return { user: r.userId, reactionType: r.reactionType, createdAt: r.createdAt };
+      });
+
+    return res.json({ reactions: normalized, total: normalized.length });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// ────────────────────── GHIM TIN NHẮN ──────────────────────
+
+// Số tin nhắn được ghim tối đa trong một cuộc trò chuyện
+const MAX_PINNED_MESSAGES = 5;
+
+// PATCH /api/messages/:messageId/pin
+// Mọi thành viên đều ghim được (giống Messenger), không chỉ admin nhóm
+async function pinMessage(req, res, next) {
+  try {
+    var message = await Message.findOne({ _id: req.params.messageId, isDeleted: false });
+    if (!message) {
+      return res.status(404).json({ message: 'Tin nhắn không tồn tại' });
+    }
+
+    var membership = await getAcceptedMembership(message.conversationId, req.user.id);
+    if (!membership) {
+      return res.status(403).json({ message: 'Bạn không thuộc cuộc trò chuyện này' });
+    }
+
+    if (message.isPinned) {
+      return res.status(400).json({ message: 'Tin nhắn này đã được ghim' });
+    }
+
+    // Giới hạn số tin ghim để thanh ghim không bị tràn
+    var pinnedCount = await Message.countDocuments({
+      conversationId: message.conversationId,
+      isPinned: true,
+      isDeleted: false,
+    });
+    if (pinnedCount >= MAX_PINNED_MESSAGES) {
+      return res.status(400).json({
+        message: 'Chỉ ghim được tối đa ' + MAX_PINNED_MESSAGES + ' tin nhắn, hãy bỏ ghim bớt',
+      });
+    }
+
+    message.isPinned = true;
+    message.pinnedAt = new Date();
+    message.pinnedBy = req.user.id;
+    await message.save();
+
+    await emitToMembers(message.conversationId, 'message_pinned', {
+      messageId: message._id.toString(),
+      conversationId: message.conversationId.toString(),
+      isPinned: true,
+      pinnedBy: req.user.id,
+    });
+
+    return res.json({ message: 'Đã ghim tin nhắn' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// DELETE /api/messages/:messageId/pin
+async function unpinMessage(req, res, next) {
+  try {
+    var message = await Message.findById(req.params.messageId);
+    if (!message) {
+      return res.status(404).json({ message: 'Tin nhắn không tồn tại' });
+    }
+
+    var membership = await getAcceptedMembership(message.conversationId, req.user.id);
+    if (!membership) {
+      return res.status(403).json({ message: 'Bạn không thuộc cuộc trò chuyện này' });
+    }
+
+    if (!message.isPinned) {
+      return res.status(400).json({ message: 'Tin nhắn này chưa được ghim' });
+    }
+
+    message.isPinned = false;
+    message.pinnedAt = null;
+    message.pinnedBy = null;
+    await message.save();
+
+    await emitToMembers(message.conversationId, 'message_pinned', {
+      messageId: message._id.toString(),
+      conversationId: message.conversationId.toString(),
+      isPinned: false,
+    });
+
+    return res.json({ message: 'Đã bỏ ghim tin nhắn' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// GET /api/messages/conversations/:id/pinned — danh sách tin nhắn đã ghim
+async function getPinnedMessages(req, res, next) {
+  try {
+    var membership = await getAcceptedMembership(req.params.id, req.user.id);
+    if (!membership) {
+      return res.status(403).json({ message: 'Bạn không thuộc cuộc trò chuyện này' });
+    }
+
+    var messages = await Message.find({
+      conversationId: req.params.id,
+      isPinned: true,
+      isDeleted: false,
+    })
+      .sort({ pinnedAt: -1 })
+      .populate('senderId', 'username fullName avatarUrl')
+      .populate('pinnedBy', 'username fullName')
+      .lean();
+
+    return res.json({ messages: messages, total: messages.length });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// ────────────────────── BIỆT DANH TRONG NHÓM ──────────────────────
+
+// PATCH /api/messages/conversations/:id/members/:memberId/nickname
+// Body: { nickname } — chuỗi rỗng để xoá biệt danh, quay về tên thật
+async function setMemberNickname(req, res, next) {
+  try {
+    var conversationId = req.params.id;
+    var targetMemberId = req.params.memberId;
+    var nickname = String(req.body.nickname === undefined ? '' : req.body.nickname).trim();
+
+    if (nickname.length > 40) {
+      return res.status(400).json({ message: 'Biệt danh tối đa 40 ký tự' });
+    }
+
+    // Bất kỳ thành viên nào cũng đặt được biệt danh cho người khác (giống Messenger)
+    var membership = await getAcceptedMembership(conversationId, req.user.id);
+    if (!membership) {
+      return res.status(403).json({ message: 'Bạn không thuộc cuộc trò chuyện này' });
+    }
+
+    var targetMembership = await ConversationMember.findOne({
+      conversationId: conversationId,
+      userId: targetMemberId,
+    });
+    if (!targetMembership) {
+      return res.status(404).json({ message: 'Người này không thuộc cuộc trò chuyện' });
+    }
+
+    targetMembership.nickname = nickname;
+    await targetMembership.save();
+
+    // Ghi một system message để cả nhóm thấy ai vừa đổi biệt danh của ai
+    var actor = await User.findById(req.user.id).select('fullName username').lean();
+    var target = await User.findById(targetMemberId).select('fullName username').lean();
+    var actorName = actor?.fullName || actor?.username || 'Một thành viên';
+    var targetName = target?.fullName || target?.username || 'một thành viên';
+
+    var noticeText = nickname
+      ? actorName + ' đã đặt biệt danh cho ' + targetName + ' là "' + nickname + '"'
+      : actorName + ' đã xoá biệt danh của ' + targetName;
+
+    var notice = await Message.create({
+      conversationId: conversationId,
+      senderId: req.user.id,
+      content: noticeText,
+      messageType: 'system',
+    });
+
+    await Conversation.findByIdAndUpdate(conversationId, {
+      lastActivityAt: new Date(),
+      lastMessageId: notice._id,
+    });
+
+    var populatedNotice = await Message.findById(notice._id)
+      .populate('senderId', 'username fullName avatarUrl')
+      .lean();
+
+    await emitToMembers(conversationId, 'nickname_changed', {
+      conversationId: conversationId,
+      userId: targetMemberId,
+      nickname: nickname,
+    });
+    await emitToMembers(conversationId, 'receive_message', populatedNotice);
+
+    return res.json({
+      message: nickname ? 'Đã đặt biệt danh' : 'Đã xoá biệt danh',
+      nickname: nickname,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// ────────────────────── CHUYỂN TIẾP TIN NHẮN ──────────────────────
+
+// POST /api/messages/:messageId/forward
+// Body: { conversationIds: [] } — chuyển tiếp sang một hoặc nhiều cuộc trò chuyện
+async function forwardMessage(req, res, next) {
+  try {
+    var userId = req.user.id;
+    var conversationIds = Array.isArray(req.body.conversationIds) ? req.body.conversationIds : [];
+
+    if (conversationIds.length === 0) {
+      return res.status(400).json({ message: 'Chọn ít nhất 1 cuộc trò chuyện' });
+    }
+
+    var source = await Message.findOne({ _id: req.params.messageId, isDeleted: false });
+    if (!source) {
+      return res.status(404).json({ message: 'Tin nhắn không tồn tại' });
+    }
+
+    // Phải là thành viên của cuộc trò chuyện GỐC mới được chuyển tiếp đi
+    var sourceMembership = await getAcceptedMembership(source.conversationId, userId);
+    if (!sourceMembership) {
+      return res.status(403).json({ message: 'Bạn không thuộc cuộc trò chuyện chứa tin nhắn này' });
+    }
+
+    // Không chuyển tiếp tin hệ thống — nội dung chỉ có nghĩa trong nhóm gốc
+    if (source.messageType === 'system') {
+      return res.status(400).json({ message: 'Không thể chuyển tiếp tin nhắn hệ thống' });
+    }
+
+    var forwarded = [];
+    var skipped = [];
+
+    for (var i = 0; i < conversationIds.length; i++) {
+      var targetId = conversationIds[i];
+
+      // Phải là thành viên của cuộc trò chuyện ĐÍCH mới gửi vào được
+      var targetMembership = await getAcceptedMembership(targetId, userId);
+      if (!targetMembership) {
+        skipped.push({ conversationId: targetId, reason: 'Không phải thành viên' });
+        continue;
+      }
+
+      // Chặn 2 chiều với chat 1-1 — dùng lại quy tắc của sendMessage
+      var targetConv = await Conversation.findById(targetId).lean();
+      if (targetConv && targetConv.type === 'direct') {
+        var targetMembers = await ConversationMember.find({ conversationId: targetId }).lean();
+        var otherMember = targetMembers.find(function (m) {
+          return m.userId.toString() !== userId;
+        });
+        if (otherMember) {
+          var blocked = await Block.findOne({
+            $or: [
+              { blockerId: userId, blockedId: otherMember.userId },
+              { blockerId: otherMember.userId, blockedId: userId },
+            ],
+          }).lean();
+          if (blocked) {
+            skipped.push({ conversationId: targetId, reason: 'Đã chặn' });
+            continue;
+          }
+
+          var otherUser = await User.findById(otherMember.userId).select('isBanned').lean();
+          if (otherUser && otherUser.isBanned) {
+            skipped.push({ conversationId: targetId, reason: BANNED_CHAT_MESSAGE });
+            continue;
+          }
+        }
+      }
+
+      // Chép nội dung sang tin mới. forwardedFromId giữ liên kết về tin gốc;
+      // không chép replyToId vì tin được reply không tồn tại ở nhóm đích.
+      var newMessage = await Message.create({
+        conversationId: targetId,
+        senderId: userId,
+        content: source.content,
+        messageType: source.messageType,
+        sharedPostId: source.sharedPostId,
+        sharedReelId: source.sharedReelId,
+        storyMediaUrl: source.storyMediaUrl,
+        storyMediaType: source.storyMediaType,
+        forwardedFromId: source._id,
+        // Nếu tin gốc cũng là tin chuyển tiếp thì giữ nguyên tác giả đầu tiên
+        forwardedFromUserId: source.forwardedFromUserId || source.senderId,
+      });
+
+      await Conversation.findByIdAndUpdate(targetId, {
+        lastActivityAt: new Date(),
+        lastMessageId: newMessage._id,
+      });
+
+      var populated = await Message.findById(newMessage._id)
+        .populate('senderId', 'username fullName avatarUrl isTrusted')
+        .populate('forwardedFromUserId', 'username fullName')
+        .lean();
+
+      await emitToMembers(targetId, 'receive_message', populated);
+      forwarded.push(populated);
+    }
+
+    if (forwarded.length === 0) {
+      return res.status(400).json({
+        message: 'Không chuyển tiếp được tới cuộc trò chuyện nào',
+        skipped: skipped,
+      });
+    }
+
+    return res.status(201).json({
+      message: 'Đã chuyển tiếp tới ' + forwarded.length + ' cuộc trò chuyện',
+      forwarded: forwarded,
+      skipped: skipped,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   getConversations,
   getPendingConversations,
@@ -1086,4 +1619,12 @@ module.exports = {
   declineConversation,
   deleteConversation,
   deleteGroup,
+  reactToMessage,
+  removeMessageReaction,
+  getMessageReactions,
+  pinMessage,
+  unpinMessage,
+  getPinnedMessages,
+  setMemberNickname,
+  forwardMessage,
 };

@@ -22,4 +22,8 @@ const postMediaSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Mọi lần load feed/profile đều tra media theo postId rồi sắp theo displayOrder.
+// Không có index này MongoDB phải quét toàn bộ collection media cho từng bài.
+postMediaSchema.index({ postId: 1, displayOrder: 1 });
+
 module.exports = mongoose.model('PostMedia', postMediaSchema);

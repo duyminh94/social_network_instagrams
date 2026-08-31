@@ -107,12 +107,12 @@ function ReelItem({ reel, isVisible }) {
   const reelOwnerId = reel.user?._id || reel.userId?._id || reel.userId
   const isOwn = !!user?._id && !!reelOwnerId && String(user._id) === String(reelOwnerId)
 
-  const filterCss = reel.filter  || reel.reelFilter || 'none'
-  const trimStart = reel.trimStart ?? reel.reelTrimStart ?? 0
-  const trimEnd   = reel.trimEnd   ?? reel.reelTrimEnd   ?? null
-  const hasAudio  = !!(reel.audioUrl || reel.reelAudioUrl)
-  const audioSrc  = reel.audioUrl  || reel.reelAudioUrl  || ''
-  const audioName = reel.audioName || reel.reelAudioName || ''
+  const filterCss = reel.filter  || 'none'
+  const trimStart = reel.trimStart ?? 0
+  const trimEnd   = reel.trimEnd   ?? null
+  const hasAudio  = !!reel.audioUrl
+  const audioSrc  = reel.audioUrl  || ''
+  const audioName = reel.audioName || ''
   const mediaUrl  = reel.videoUrl  || reel.mediaUrl      || reel.media?.[0]?.url
 
   // ── Khi slide vào / ra viewport: reset về đầu và play/pause ──
@@ -155,7 +155,7 @@ function ReelItem({ reel, isVisible }) {
       if (isOwn) return            // reel của mình → không định hình gợi ý
 
       // Thời lượng hiệu dụng: ưu tiên đoạn trim, rồi reel.duration, rồi duration thật của video
-      let durationSec = reel.duration || reel.reelDuration || 0
+      let durationSec = reel.duration || 0
       if (trimEnd != null && trimStart != null && trimEnd > trimStart) {
         durationSec = trimEnd - trimStart
       } else if (!durationSec && videoRef.current && isFinite(videoRef.current.duration)) {

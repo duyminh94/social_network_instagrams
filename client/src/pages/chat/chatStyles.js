@@ -577,6 +577,7 @@ export function messageRow(isMine) {
     mb: '2px',
     flexDirection: isMine ? 'row-reverse' : 'row',
     '&:hover .messageReplyBtn': { opacity: 1 },
+    '&:hover .messageReactBtn': { opacity: 1 },
   }
 }
 
@@ -626,6 +627,81 @@ export var messageReplyBtn = {
   py: .75, px: .5,
   transition: 'opacity 140ms, color 140ms',
   '&:hover': { color: 'text.primary' },
+}
+
+// Thanh tin nhắn đã ghim, nằm ngay dưới header và trên danh sách tin nhắn
+export var pinnedBar = {
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+  bgcolor: 'action.hover',
+  px: 2, py: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: .5,
+  flexShrink: 0,
+}
+
+export var pinnedItem = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1,
+}
+
+export var pinnedText = {
+  flex: 1,
+  minWidth: 0,
+  textAlign: 'left',
+  border: 'none',
+  background: 'transparent',
+  color: 'text.primary',
+  fontSize: 13,
+  cursor: 'pointer',
+  p: 0,
+  // Tin dài chỉ hiện 1 dòng để thanh ghim không đẩy khung chat
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+}
+
+export var pinnedUnpinBtn = {
+  border: 'none',
+  background: 'transparent',
+  color: 'text.secondary',
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: 'pointer',
+  flexShrink: 0,
+  p: 0,
+  '&:hover': { color: 'text.primary' },
+}
+
+// Nút mở bảng chọn cảm xúc — cùng kiểu ẩn/hiện khi hover như nút trả lời
+export var messageReactBtn = {
+  opacity: 0,
+  border: 'none',
+  background: 'transparent',
+  fontSize: 14,
+  lineHeight: 1,
+  cursor: 'pointer',
+  py: .75, px: .25,
+  transition: 'opacity 140ms',
+}
+
+// Bọc bảng chọn cảm xúc: ReactionBar định vị absolute nên cần mốc relative
+export var reactionPickerAnchor = {
+  position: 'relative',
+}
+
+// Hàng emoji hiển thị dưới bong bóng tin nhắn
+export function messageReactions(isMine) {
+  return {
+    display: 'flex',
+    gap: .25,
+    mt: '2px',
+    px: .5,
+    fontSize: 13,
+    alignSelf: isMine ? 'flex-end' : 'flex-start',
+  }
 }
 
 export function replyPreviewInBubble(isMine) {

@@ -32,7 +32,25 @@ import {
   deleteConversation,
   removeMemberFromConversation,
   deleteGroup,
+  reactToMessage,
+  getPinnedMessages,
+  pinMessage,
+  unpinMessage,
+  forwardMessage,
+  setMemberNickname,
 } from '../../features/chat/chatAPI'
+import TextField from '@mui/material/TextField'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import List from '@mui/material/List'
+import ListItemButton from '@mui/material/ListItemButton'
+import ListItemText from '@mui/material/ListItemText'
+import Checkbox from '@mui/material/Checkbox'
+import Button from '../../components/common/Button'
+import ReactionBar from '../../components/common/ReactionBar'
+import { reactionEmoji } from '../../components/common/reactions'
 import api from '../../services/api'
 import Avatar from '../../components/common/Avatar'
 import Spinner from '../../components/common/Spinner'
@@ -40,6 +58,45 @@ import { ListSkeleton } from '../../components/common/Skeletons'
 import { staggerIn } from '../../theme/animations'
 import Box from '@mui/material/Box'
 import * as s from './chatStyles'
+
+// Cập nhật danh sách cảm xúc của 1 tin nhắn trong mảng messages.
+// Dùng chung cho 2 đường: socket 'message_reaction' và fallback REST khi socket rớt.
+//   change: { messageId, userId, reactionType } — reactionType = null nghĩa là gỡ cảm xúc
+function applyReactionToMessages(messages, change, myId) {
+  return messages.map(function (m) {
+    if (String(m._id) !== String(change.messageId)) return m
+
+    // Bỏ cảm xúc cũ của đúng người này rồi thêm lại cảm xúc mới (nếu có)
+    var others = (m.reactions || []).filter(function (r) {
+      return String(r.user?._id || r.user || '') !== String(change.userId)
+    })
+    var nextReactions = change.reactionType
+      ? others.concat([{ user: { _id: change.userId }, reactionType: change.reactionType }])
+      : others
+
+    var next = Object.assign({}, m, { reactions: nextReactions })
+    // Cảm xúc của chính mình được giữ riêng để tô đậm đúng icon đang chọn
+    if (String(change.userId) === String(myId)) {
+      next.myReaction = change.reactionType || null
+    }
+    return next
+  })
+}
+
+// Gom cảm xúc của 1 tin nhắn theo loại để hiện "❤️2 😂1" thay vì liệt kê từng người.
+// Trả về mảng { type, count }, giữ thứ tự loại nào được thả trước đứng trước.
+function groupReactions(reactions) {
+  var result = []
+  ;(reactions || []).forEach(function (r) {
+    var found = result.find(function (item) { return item.type === r.reactionType })
+    if (found) {
+      found.count = found.count + 1
+    } else {
+      result.push({ type: r.reactionType, count: 1 })
+    }
+  })
+  return result
+}
 
 // ── Icon components ──
 
@@ -197,8 +254,10 @@ export default function Chat() {
   var [blockState, setBlockState] = useState({ isBlocked: false, iBlocked: false })
   var [showDetails, setShowDetails] = useState(false)
   var [mutedMap, setMutedMap] = useState({})
-  var [nicknameMap, setNicknameMap] = useState({})
-  var [nicknameStorageReady, setNicknameStorageReady] = useState(false)
+  // Đặt biệt danh: thành viên đang chọn + ô nhập trong hộp thoại
+  var [nicknameTarget, setNicknameTarget] = useState(null)
+  var [nicknameInput, setNicknameInput] = useState('')
+  var [isSavingNickname, setIsSavingNickname] = useState(false)
   var [isBlocking, setIsBlocking] = useState(false)
   var [isReporting, setIsReporting] = useState(false)
   var [isDeletingChat, setIsDeletingChat] = useState(false)
@@ -206,6 +265,14 @@ export default function Chat() {
   var [confirmType, setConfirmType] = useState('')
   var [kickMember, setKickMember] = useState(null)
   var [replyTarget, setReplyTarget] = useState(null)
+  // Id tin nhắn đang mở bảng chọn cảm xúc (null = không mở bảng nào)
+  var [reactionPickerFor, setReactionPickerFor] = useState(null)
+  // Danh sách tin nhắn đang ghim của cuộc trò chuyện đang mở (tối đa 5 tin, do server giới hạn)
+  var [pinnedMessages, setPinnedMessages] = useState([])
+  // Chuyển tiếp tin nhắn: tin đang chọn + các cuộc trò chuyện đích được tick
+  var [forwardMessageTarget, setForwardMessageTarget] = useState(null)
+  var [forwardSelectedIds, setForwardSelectedIds] = useState([])
+  var [isForwarding, setIsForwarding] = useState(false)
   var messagesEndRef = useRef(null)
   var typingTimeout = useRef(null)
   var lastTypingEmit = useRef(0)
@@ -237,23 +304,6 @@ export default function Chat() {
   }, [paramId])
 
   var myId = String(user?._id || user?.id || '')
-
-  useEffect(function () {
-    if (!myId) return
-    setNicknameStorageReady(false)
-    try {
-      var saved = window.localStorage.getItem('chatNicknames:' + myId)
-      setNicknameMap(saved ? JSON.parse(saved) : {})
-    } catch {
-      setNicknameMap({})
-    }
-    setNicknameStorageReady(true)
-  }, [myId])
-
-  useEffect(function () {
-    if (!myId || !nicknameStorageReady) return
-    window.localStorage.setItem('chatNicknames:' + myId, JSON.stringify(nicknameMap))
-  }, [nicknameMap, myId, nicknameStorageReady])
 
   // ── Query conversations (accepted) ──
   var { data: convsData, isLoading: convsLoading } = useQuery({
@@ -362,6 +412,29 @@ export default function Chat() {
   useEffect(function () {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Tải danh sách tin đã ghim mỗi khi mở một cuộc trò chuyện khác.
+  // Không gọi cho pending conversation vì server chặn 403 giống các API tin nhắn khác.
+  useEffect(function () {
+    var isPending = pendingConversations.some(function (c) { return String(c._id) === String(activeConvId) })
+    if (!activeConvId || pendingLoading || isPending) {
+      setPinnedMessages([])
+      return
+    }
+
+    var stillCurrent = true
+    getPinnedMessages(activeConvId)
+      .then(function (res) {
+        // Bỏ kết quả về muộn khi user đã chuyển sang cuộc trò chuyện khác
+        if (!stillCurrent) return
+        setPinnedMessages(res.data?.messages || [])
+      })
+      .catch(function () {
+        if (stillCurrent) setPinnedMessages([])
+      })
+
+    return function () { stillCurrent = false }
+  }, [activeConvId, pendingLoading, pendingConversations])
 
   // ── Socket realtime events ──
   //
@@ -507,6 +580,52 @@ export default function Chat() {
       }
     }
 
+    // ── Cảm xúc tin nhắn ──
+    // Server emit cho tất cả thành viên sau khi lưu MessageReaction.
+    // payload: { messageId, conversationId, userId, reactionType }
+    //   reactionType = null nghĩa là người đó vừa GỠ cảm xúc
+    function onMessageReaction(data) {
+      if (String(data.conversationId) !== String(activeConvId || '')) return
+
+      setMessages(function (prev) {
+        return applyReactionToMessages(prev, data, myId)
+      })
+    }
+
+    // ── Ghim / bỏ ghim tin nhắn ──
+    // payload: { messageId, conversationId, isPinned, pinnedBy }
+    // Chỉ có cờ isPinned nên khi ghim thêm phải lấy nội dung tin từ state messages;
+    //   tin nằm ở trang cũ chưa tải thì gọi lại API cho chắc.
+    function onMessagePinned(data) {
+      if (String(data.conversationId) !== String(activeConvId || '')) return
+
+      setMessages(function (prev) {
+        return prev.map(function (m) {
+          if (String(m._id) !== String(data.messageId)) return m
+          return Object.assign({}, m, { isPinned: !!data.isPinned })
+        })
+      })
+
+      if (!data.isPinned) {
+        setPinnedMessages(function (prev) {
+          return prev.filter(function (m) { return String(m._id) !== String(data.messageId) })
+        })
+        return
+      }
+
+      getPinnedMessages(activeConvId)
+        .then(function (res) { setPinnedMessages(res.data?.messages || []) })
+        .catch(function () { /* giữ nguyên thanh ghim hiện có nếu gọi lỗi */ })
+    }
+
+    // ── Ai đó đổi biệt danh của một thành viên ──
+    // payload: { conversationId, memberId, nickname }
+    // Biệt danh nằm trong members của conversation nên tải lại danh sách cho khớp.
+    function onNicknameChanged(data) {
+      if (String(data.conversationId) !== String(activeConvId || '')) return
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    }
+
     // Đăng ký tất cả listener
     function onMessageError(data) {
       toast.error(data?.message || 'Không thể gửi tin nhắn')
@@ -519,6 +638,9 @@ export default function Chat() {
     socket.on('member_removed', onMemberRemoved)
     socket.on('group_deleted', onGroupDeleted)
     socket.on('message_read', onMessageRead)
+    socket.on('message_reaction', onMessageReaction)
+    socket.on('message_pinned', onMessagePinned)
+    socket.on('nickname_changed', onNicknameChanged)
     socket.on('message_error', onMessageError)
 
     // Cleanup: bắt buộc phải huỷ listener cũ khi component unmount hoặc dependency đổi
@@ -531,6 +653,9 @@ export default function Chat() {
       socket.off('member_removed', onMemberRemoved)
       socket.off('group_deleted', onGroupDeleted)
       socket.off('message_read', onMessageRead)
+      socket.off('message_reaction', onMessageReaction)
+      socket.off('message_pinned', onMessagePinned)
+      socket.off('nickname_changed', onNicknameChanged)
       socket.off('message_error', onMessageError)
     }
   }, [socket, activeConvId, myId, queryClient, navigate, t.chat.kickedFromGroup, t.chat.groupDeletedNotice])
@@ -843,6 +968,104 @@ export default function Chat() {
     setShowEmojiPicker(false)
   }
 
+  // Ghim tin nhắn. Server giới hạn 5 tin mỗi cuộc trò chuyện và tự emit 'message_pinned'
+  //   cho mọi thành viên, nên ở đây không cần tự sửa state.
+  function handlePinMessage(msg) {
+    if (!msg?._id) return
+    pinMessage(msg._id).catch(function (error) {
+      toast.error(error.response?.data?.message || t.common.error)
+    })
+  }
+
+  function handleUnpinMessage(messageId) {
+    unpinMessage(messageId).catch(function (error) {
+      toast.error(error.response?.data?.message || t.common.error)
+    })
+  }
+
+  // Mở hộp thoại chọn nơi chuyển tiếp — mỗi lần mở đều bắt đầu với danh sách chọn trống
+  function handleOpenForward(msg) {
+    if (!msg || msg.messageType === 'system') return
+    setForwardMessageTarget(msg)
+    setForwardSelectedIds([])
+  }
+
+  // Tick / bỏ tick một cuộc trò chuyện trong hộp thoại chuyển tiếp
+  function toggleForwardTarget(conversationId) {
+    setForwardSelectedIds(function (prev) {
+      if (prev.includes(conversationId)) {
+        return prev.filter(function (id) { return id !== conversationId })
+      }
+      return prev.concat([conversationId])
+    })
+  }
+
+  // Gửi tin nhắn đã chọn sang các cuộc trò chuyện đích.
+  // Server trả về danh sách skipped (bị chặn / không còn là thành viên) nên báo lại cho user biết.
+  function handleForwardMessage() {
+    if (!forwardMessageTarget?._id || forwardSelectedIds.length === 0) return
+
+    setIsForwarding(true)
+    forwardMessage(forwardMessageTarget._id, forwardSelectedIds)
+      .then(function (res) {
+        var skipped = res.data?.skipped || []
+        if (skipped.length > 0) {
+          toast(t.chat.forwardPartial.replace('{count}', String(skipped.length)))
+        } else {
+          toast.success(t.chat.forwarded)
+        }
+        setForwardMessageTarget(null)
+        setForwardSelectedIds([])
+        queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      })
+      .catch(function (error) {
+        toast.error(error.response?.data?.message || t.common.error)
+      })
+      .finally(function () {
+        setIsForwarding(false)
+      })
+  }
+
+  // Cuộn tới tin nhắn được ghim khi bấm vào thanh ghim.
+  // Tin nằm ở trang cũ chưa tải thì không tìm thấy phần tử — báo cho user biết thay vì im lặng.
+  function scrollToMessage(messageId) {
+    var element = document.getElementById('msg-' + messageId)
+    if (!element) {
+      toast(t.chat.pinnedNotLoaded)
+      return
+    }
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  // Thả cảm xúc lên tin nhắn.
+  // Ưu tiên socket để mọi thành viên thấy ngay; socket rớt thì gọi REST cho khỏi mất thao tác.
+  // Thả lại đúng cảm xúc đang có = bỏ cảm xúc, phần này server tự xử lý.
+  function handleReactMessage(msg, reactionType) {
+    setReactionPickerFor(null)
+    if (!msg?._id) return
+
+    if (socket && socket.connected) {
+      socket.emit('react_message', { messageId: msg._id, reactionType: reactionType })
+      return
+    }
+
+    reactToMessage(msg._id, reactionType)
+      .then(function (res) {
+        // Socket đang rớt nên sẽ không nhận được event 'message_reaction' của chính mình
+        //   → tự cập nhật state theo kết quả server trả về
+        setMessages(function (prev) {
+          return applyReactionToMessages(prev, {
+            messageId: msg._id,
+            userId: myId,
+            reactionType: res.data?.reactionType || null,
+          }, myId)
+        })
+      })
+      .catch(function () {
+        toast.error(t.common.error)
+      })
+  }
+
   // Active conversation có thể nằm trong accepted hoặc pending list
   var activeConv = conversations.find(function (c) { return String(c._id) === String(activeConvId) })
     || pendingConversations.find(function (c) { return String(c._id) === String(activeConvId) })
@@ -852,11 +1075,20 @@ export default function Chat() {
 
   var activeOther = activeConv ? getOtherParticipant(activeConv) : null
   var activeIsGroup = activeConv?.type === 'group'
-  var baseActiveDisplayName = activeIsGroup
-    ? (activeConv?.name || t.chat.groupFallback)
-    : (activeOther?.fullName || activeOther?.username || 'Chat')
-  var activeDisplayName = nicknameMap[String(activeConvId || '')] || baseActiveDisplayName
   var detailMembers = activeConv?.members || []
+
+  // Biệt danh lấy từ ConversationMember.nickname do server trả về — mọi thành viên thấy như nhau
+  function getMemberNickname(userId) {
+    var found = detailMembers.find(function (member) {
+      return String(member.userId?._id || member.userId || '') === String(userId)
+    })
+    return found?.nickname || ''
+  }
+
+  // Tên hiện ở header: nhóm dùng tên nhóm, chat 1-1 ưu tiên biệt danh của người kia
+  var activeDisplayName = activeIsGroup
+    ? (activeConv?.name || t.chat.groupFallback)
+    : (getMemberNickname(activeOther?._id) || activeOther?.fullName || activeOther?.username || 'Chat')
   var isMuted = !!mutedMap[String(activeConvId || '')]
   var myGroupMember = detailMembers.find(function (member) {
     return String(member.userId?._id || member.userId || '') === myId
@@ -874,19 +1106,33 @@ export default function Chat() {
     })
   }
 
-  function handleNickname() {
-    if (!activeConvId) return
-    var nextName = window.prompt(t.chat.enterNickname, nicknameMap[String(activeConvId)] || baseActiveDisplayName)
-    if (nextName === null) return
-    setNicknameMap(function (prev) {
-      var next = Object.assign({}, prev)
-      if (nextName.trim()) {
-        next[String(activeConvId)] = nextName.trim()
-      } else {
-        delete next[String(activeConvId)]
-      }
-      return next
-    })
+  // Mở hộp thoại đặt biệt danh cho 1 thành viên, điền sẵn biệt danh đang có
+  function handleOpenNickname(member) {
+    var memberUserId = String(member.userId?._id || member.userId || '')
+    setNicknameTarget(member)
+    setNicknameInput(getMemberNickname(memberUserId))
+  }
+
+  // Lưu biệt danh — để trống là xoá biệt danh, quay về tên thật.
+  // Server emit 'nickname_changed' + thêm tin nhắn hệ thống nên mọi thành viên thấy ngay.
+  function handleSaveNickname() {
+    if (!nicknameTarget || !activeConvId) return
+    var memberUserId = String(nicknameTarget.userId?._id || nicknameTarget.userId || '')
+
+    setIsSavingNickname(true)
+    setMemberNickname(activeConvId, memberUserId, nicknameInput.trim())
+      .then(function () {
+        setNicknameTarget(null)
+        setNicknameInput('')
+        // Biệt danh nằm trong members của conversation → tải lại danh sách cho khớp
+        queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      })
+      .catch(function (error) {
+        toast.error(error.response?.data?.message || t.common.error)
+      })
+      .finally(function () {
+        setIsSavingNickname(false)
+      })
   }
 
   function handleBlockUser() {
@@ -978,11 +1224,8 @@ export default function Chat() {
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
       queryClient.invalidateQueries({ queryKey: ['conversations-pending'] })
       queryClient.removeQueries({ queryKey: ['messages', deletedConvId] })
-      setNicknameMap(function (prev) {
-        var next = Object.assign({}, prev)
-        delete next[String(deletedConvId)]
-        return next
-      })
+      // Biệt danh nay nằm trong ConversationMember ở server, xoá chat là mất theo,
+      //   client không còn phải tự dọn như hồi lưu ở localStorage
       setMutedMap(function (prev) {
         var next = Object.assign({}, prev)
         delete next[String(deletedConvId)]
@@ -1489,8 +1732,9 @@ export default function Chat() {
                 <Box sx={s.detailsSectionTitle}>{t.chat.members}</Box>
                 {detailMembers.map(function (member) {
                   var memberUser = member.userId || {}
-                  var memberName = memberUser.fullName || memberUser.username || 'Unknown'
                   var memberId = String(memberUser._id || member.userId || '')
+                  // Có biệt danh thì hiện biệt danh, tên thật lùi xuống dòng phụ
+                  var memberName = member.nickname || memberUser.fullName || memberUser.username || 'Unknown'
                   // Chỉ kick thành viên thường — admin không được kick admin khác
                   var canKick = isGroupAdmin && memberId !== myId && member.role !== 'admin'
                   return (
@@ -1512,6 +1756,14 @@ export default function Chat() {
                           </Box>
                         </Box>
                       </Box>
+                      <Box
+                        component="button"
+                        type="button"
+                        sx={s.detailsKickBtn}
+                        onClick={function () { handleOpenNickname(member) }}
+                      >
+                        {t.chat.nickname}
+                      </Box>
                       {canKick && (
                         <Box
                           component="button"
@@ -1528,7 +1780,6 @@ export default function Chat() {
               </Box>
 
               <Box sx={s.detailsBottom}>
-                <Box component="button" type="button" sx={s.detailsAction(false)} onClick={handleNickname}>{t.chat.nickname}</Box>
                 {!activeIsGroup && (
                   <Box component="button" type="button" sx={s.detailsAction(false)} onClick={handleBlockUser} disabled={isBlocking}>
                     {isBlocking ? t.chat.blocking : t.chat.block}
@@ -1554,6 +1805,34 @@ export default function Chat() {
                   </Box>
                 )}
               </Box>
+            </Box>
+          )}
+
+          {/* Thanh tin nhắn đã ghim — bấm vào nội dung để cuộn tới tin đó */}
+          {!isPendingConv && pinnedMessages.length > 0 && (
+            <Box sx={s.pinnedBar}>
+              {pinnedMessages.map(function (pinned) {
+                return (
+                  <Box key={pinned._id} sx={s.pinnedItem}>
+                    <Box
+                      component="button"
+                      type="button"
+                      sx={s.pinnedText}
+                      onClick={function () { scrollToMessage(pinned._id) }}
+                    >
+                      📌 {getMessagePreview(pinned)}
+                    </Box>
+                    <Box
+                      component="button"
+                      type="button"
+                      sx={s.pinnedUnpinBtn}
+                      onClick={function () { handleUnpinMessage(pinned._id) }}
+                    >
+                      {t.chat.unpin}
+                    </Box>
+                  </Box>
+                )
+              })}
             </Box>
           )}
 
@@ -1612,7 +1891,7 @@ export default function Chat() {
               var showName = !isMine && isGroup && (prevMsg?.messageType === 'system' || prevSenderId !== senderId)
 
               return (
-                <Box key={msg._id || i} sx={s.messageRow(isMine)}>
+                <Box key={msg._id || i} id={'msg-' + msg._id} sx={s.messageRow(isMine)}>
                   {!isMine && (
                     isLastInGroup
                       ? <Box sx={s.avatarSlot}><Avatar src={senderInfo?.avatarUrl} username={senderInfo?.username} size="sm" /></Box>
@@ -1643,10 +1922,47 @@ export default function Chat() {
                         msg.content
                       )}
                     </Box>
+                    {/* Cảm xúc đã thả — gom theo loại, hiện emoji kèm số lượng khi có nhiều người */}
+                    {groupReactions(msg.reactions).length > 0 && (
+                      <Box sx={s.messageReactions(isMine)}>
+                        {groupReactions(msg.reactions).map(function (item) {
+                          return (
+                            <Box component="span" key={item.type}>
+                              {reactionEmoji(item.type)}
+                              {item.count > 1 ? item.count : ''}
+                            </Box>
+                          )
+                        })}
+                      </Box>
+                    )}
+
                     {isMine && i === lastMyMsgIdx && hasReaders && (
                       <Box sx={s.readReceipt}>{t.chat.seen}</Box>
                     )}
                   </Box>
+
+                  {/* Nút thả cảm xúc — bảng chọn mở ngay phía trên nút */}
+                  <Box sx={s.reactionPickerAnchor}>
+                    <Box
+                      component="button"
+                      type="button"
+                      className="messageReactBtn"
+                      sx={s.messageReactBtn}
+                      aria-label={t.chat.react}
+                      onClick={function () {
+                        setReactionPickerFor(reactionPickerFor === msg._id ? null : msg._id)
+                      }}
+                    >
+                      {msg.myReaction ? reactionEmoji(msg.myReaction) : '☺'}
+                    </Box>
+                    {reactionPickerFor === msg._id && (
+                      <ReactionBar
+                        onPick={function (type) { handleReactMessage(msg, type) }}
+                        onMouseLeave={function () { setReactionPickerFor(null) }}
+                      />
+                    )}
+                  </Box>
+
                   <Box
                     component="button"
                     type="button"
@@ -1655,6 +1971,33 @@ export default function Chat() {
                     onClick={function () { handleReplyMessage(msg) }}
                   >
                     {t.chat.reply}
+                  </Box>
+
+                  {/* Ghim / bỏ ghim — mọi thành viên đều làm được, giống Messenger */}
+                  <Box
+                    component="button"
+                    type="button"
+                    className="messageReplyBtn"
+                    sx={s.messageReplyBtn}
+                    onClick={function () {
+                      if (msg.isPinned) {
+                        handleUnpinMessage(msg._id)
+                      } else {
+                        handlePinMessage(msg)
+                      }
+                    }}
+                  >
+                    {msg.isPinned ? t.chat.unpin : t.chat.pin}
+                  </Box>
+
+                  <Box
+                    component="button"
+                    type="button"
+                    className="messageReplyBtn"
+                    sx={s.messageReplyBtn}
+                    onClick={function () { handleOpenForward(msg) }}
+                  >
+                    {t.chat.forward}
                   </Box>
                 </Box>
               )
@@ -1815,6 +2158,81 @@ export default function Chat() {
           </Box>
         </Box>
       )}
+
+      {/* Hộp thoại đặt biệt danh cho một thành viên — để trống là xoá biệt danh */}
+      <Dialog
+        open={!!nicknameTarget}
+        onClose={function () { setNicknameTarget(null) }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>{t.chat.nickname}</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            margin="dense"
+            label={t.chat.enterNickname}
+            value={nicknameInput}
+            inputProps={{ maxLength: 40 }}
+            onChange={function (e) { setNicknameInput(e.target.value) }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outline-secondary" onClick={function () { setNicknameTarget(null) }}>
+            {t.common.cancel}
+          </Button>
+          <Button loading={isSavingNickname} onClick={handleSaveNickname}>
+            {t.common.save}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Hộp thoại chuyển tiếp: tick một hoặc nhiều cuộc trò chuyện rồi gửi */}
+      <Dialog
+        open={!!forwardMessageTarget}
+        onClose={function () { setForwardMessageTarget(null) }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>{t.chat.forward}</DialogTitle>
+        <DialogContent dividers>
+          <List dense>
+            {conversations.map(function (conv) {
+              var other = getOtherParticipant(conv)
+              var title = conv.type === 'group'
+                ? (conv.name || t.chat.groupChat)
+                : (other?.fullName || other?.username || t.chat.unknownUser)
+              return (
+                <ListItemButton
+                  key={conv._id}
+                  onClick={function () { toggleForwardTarget(String(conv._id)) }}
+                >
+                  <Checkbox
+                    edge="start"
+                    tabIndex={-1}
+                    disableRipple
+                    checked={forwardSelectedIds.includes(String(conv._id))}
+                  />
+                  <ListItemText primary={title} />
+                </ListItemButton>
+              )
+            })}
+          </List>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outline-secondary" onClick={function () { setForwardMessageTarget(null) }}>
+            {t.common.cancel}
+          </Button>
+          <Button
+            loading={isForwarding}
+            disabled={forwardSelectedIds.length === 0}
+            onClick={handleForwardMessage}
+          >
+            {t.chat.forward}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {confirmType && (
         <Box sx={s.confirmOverlay}>

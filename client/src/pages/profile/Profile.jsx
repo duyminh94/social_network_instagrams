@@ -16,12 +16,25 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
+import Chip from '@mui/material/Chip'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import TextField from '@mui/material/TextField'
 import IconButton from '@mui/material/IconButton'
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz'
 import api from '../../services/api'
 import { useAuth } from '../../hooks/useAuth'
-import { getUserPosts } from '../../features/post/postAPI'
+import { getUserPosts, getArchivedPosts, getPostsTaggingMe, getMentionsOfMe } from '../../features/post/postAPI'
 import { getUserReels } from '../../features/reel/reelAPI'
+import {
+  getSavedItems,
+  getCollections,
+  createCollection,
+  updateCollection,
+  deleteCollection,
+} from '../../features/saved/savedAPI'
 import { getMyStories } from '../../features/story/storyAPI'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Avatar from '../../components/common/Avatar'
@@ -38,6 +51,7 @@ import ConfirmModal from '../../components/common/ConfirmModal'
 import { blockUser } from '../../features/block/blockAPI'
 import FollowListModal from '../../components/user/FollowListModal'
 import { formatNumber } from '../../utils/formatNumber'
+import { timeAgo } from '../../utils/formatTime'
 import Icon from '../../components/common/Icon'
 import * as s from './profileStyles'
 
@@ -48,11 +62,21 @@ export default function Profile() {
   const queryClient = useQueryClient()
   var { t } = useLanguage()
 
-  // Tab đang chọn: 'posts' | 'reels' | 'saved'
+  // Tab đang chọn: 'posts' | 'reels' | 'saved' | 'archived' | 'tagged' | 'mentions'
   const [activeTab, setActiveTab] = useState('posts')
 
   // Bài viết đang được chọn để xem trong PostModal
   const [selectedPost, setSelectedPost] = useState(null)
+
+  // Bộ sưu tập đang lọc ở tab Đã lưu — null nghĩa là xem tất cả mục đã lưu
+  const [selectedCollectionId, setSelectedCollectionId] = useState(null)
+  // Dialog tạo mới / đổi tên bộ sưu tập — dùng chung, phân biệt bằng editingCollection
+  //   editingCollection = null  → đang tạo mới
+  //   editingCollection = {...} → đang đổi tên bộ sưu tập đó
+  const [showCollectionDialog, setShowCollectionDialog] = useState(false)
+  const [editingCollection, setEditingCollection] = useState(null)
+  const [collectionNameInput, setCollectionNameInput] = useState('')
+  const [showDeleteCollectionConfirm, setShowDeleteCollectionConfirm] = useState(false)
 
   // Reel đang được chọn (index trong mảng reels)
   const [reelViewerIndex, setReelViewerIndex] = useState(null)
@@ -111,13 +135,105 @@ export default function Profile() {
   })
 
   // Fetch bài đã lưu (chỉ chạy khi xem trang của chính mình)
+  // selectedCollectionId nằm trong queryKey → đổi chip lọc là tự fetch lại đúng bộ sưu tập
   const { data: savedData } = useQuery({
-    queryKey: ['savedPosts', me?._id],
+    queryKey: ['savedPosts', me?._id, selectedCollectionId],
     queryFn: function () {
-      return api.get('/saved').then(function (r) { return r.data })
+      return getSavedItems(selectedCollectionId).then(function (r) { return r.data })
     },
     enabled: !!me?._id && profile?._id === me?._id,
   })
+
+  // Bài đã lưu trữ — chỉ fetch khi thật sự mở tab, vì đây là mục ít khi xem tới
+  const { data: archivedData, isLoading: archivedLoading } = useQuery({
+    queryKey: ['archivedPosts', me?._id],
+    queryFn: function () {
+      return getArchivedPosts().then(function (r) { return r.data })
+    },
+    enabled: !!me?._id && profile?._id === me?._id && activeTab === 'archived',
+  })
+
+  // Bài có gắn thẻ mình trên ảnh — cũng chỉ fetch khi mở tab
+  const { data: taggedData, isLoading: taggedLoading } = useQuery({
+    queryKey: ['taggedPosts', me?._id],
+    queryFn: function () {
+      return getPostsTaggingMe().then(function (r) { return r.data })
+    },
+    enabled: !!me?._id && profile?._id === me?._id && activeTab === 'tagged',
+  })
+
+  // Nội dung nhắc @tên mình — danh sách dạng dòng, không phải grid ảnh
+  const { data: mentionsData, isLoading: mentionsLoading } = useQuery({
+    queryKey: ['mentions', me?._id],
+    queryFn: function () {
+      return getMentionsOfMe().then(function (r) { return r.data })
+    },
+    enabled: !!me?._id && profile?._id === me?._id && activeTab === 'mentions',
+  })
+
+  // Danh sách bộ sưu tập của mình — chỉ cần khi đang xem trang của chính mình
+  const { data: collectionsData } = useQuery({
+    queryKey: ['collections', me?._id],
+    queryFn: function () {
+      return getCollections().then(function (r) { return r.data })
+    },
+    enabled: !!me?._id && profile?._id === me?._id,
+  })
+
+  // Lưu dialog bộ sưu tập: tạo mới hoặc đổi tên tuỳ editingCollection
+  const saveCollectionMutation = useMutation({
+    mutationFn: function (name) {
+      if (editingCollection) {
+        return updateCollection(editingCollection._id, name)
+      }
+      return createCollection(name)
+    },
+    onSuccess: function (res) {
+      toast.success(editingCollection ? t.profile.collectionRenamed : t.profile.collectionCreated)
+      closeCollectionDialog()
+      queryClient.invalidateQueries({ queryKey: ['collections', me?._id] })
+      // Tạo mới thì chuyển sang xem luôn bộ sưu tập vừa tạo cho user thấy kết quả
+      var saved = res.data?.collection
+      if (!editingCollection && saved?._id) {
+        setSelectedCollectionId(saved._id)
+      }
+    },
+    onError: function (error) {
+      toast.error(error.response?.data?.message || t.common.error)
+    },
+  })
+
+  // Xoá bộ sưu tập đang chọn — bài bên trong được server chuyển về mục mặc định
+  const deleteCollectionMutation = useMutation({
+    mutationFn: function (collectionId) {
+      return deleteCollection(collectionId)
+    },
+    onSuccess: function () {
+      toast.success(t.profile.collectionDeleted)
+      setShowDeleteCollectionConfirm(false)
+      // Bộ sưu tập vừa xoá không còn → quay về xem tất cả mục đã lưu
+      setSelectedCollectionId(null)
+      queryClient.invalidateQueries({ queryKey: ['collections', me?._id] })
+      queryClient.invalidateQueries({ queryKey: ['savedPosts', me?._id] })
+    },
+    onError: function (error) {
+      toast.error(error.response?.data?.message || t.common.error)
+    },
+  })
+
+  // Đóng dialog và dọn state nhập liệu — gọi từ nút Hủy và sau khi lưu thành công
+  function closeCollectionDialog() {
+    setShowCollectionDialog(false)
+    setEditingCollection(null)
+    setCollectionNameInput('')
+  }
+
+  // Mở dialog ở chế độ đổi tên bộ sưu tập đang chọn
+  function openRenameCollection(collection) {
+    setEditingCollection(collection)
+    setCollectionNameInput(collection.name)
+    setShowCollectionDialog(true)
+  }
 
   // Fetch reels của user này (privacy/block do server xử lý)
   const { data: reelsData, isLoading: reelsLoading } = useQuery({
@@ -297,7 +413,43 @@ export default function Profile() {
 
   const userReels = reelsData?.reels || []
 
-  const displayPosts = activeTab === 'posts' ? posts : saved
+  // Bỏ bộ sưu tập mặc định khỏi dải chip vì chip "Tất cả" đã bao trùm nội dung của nó
+  const collections = (collectionsData?.collections || [])
+    .filter(function (collection) { return !collection.isDefault })
+
+  // Bộ sưu tập đang được chọn (null khi đang xem chip "Tất cả")
+  const selectedCollection = collections.find(function (collection) {
+    return collection._id === selectedCollectionId
+  }) || null
+
+  const archivedPosts = archivedData?.posts || []
+  const taggedPosts = taggedData?.posts || []
+
+  // Các tab dùng chung một grid ảnh, chỉ khác nguồn dữ liệu và trạng thái rỗng
+  const postsByTab = { posts: posts, saved: saved, archived: archivedPosts, tagged: taggedPosts }
+  const loadingByTab = { posts: postsLoading, saved: postsLoading, archived: archivedLoading, tagged: taggedLoading }
+  const emptyIconByTab = { archived: '🗄️', tagged: '🏷️' }
+  const emptyTextByTab = { archived: t.profile.noArchived, tagged: t.profile.noTagged }
+
+  const displayPosts = postsByTab[activeTab] || []
+  const gridLoading = loadingByTab[activeTab] || false
+
+  const mentions = mentionsData?.mentions || []
+
+  const mentionSourceLabels = {
+    post: t.profile.mentionSourcePost,
+    reel: t.profile.mentionSourceReel,
+    comment: t.profile.mentionSourceComment,
+  }
+
+  // Đường dẫn mở nguồn của một lời nhắc — lời nhắc trong bình luận mở bài chứa nó.
+  // Nguồn đã bị xoá thì server trả postId/reelId = null → dòng đó không bấm được.
+  function mentionLinkTo(mention) {
+    if (mention.sourceType === 'reel') {
+      return mention.reelId ? '/reels/' + mention.reelId : null
+    }
+    return mention.postId ? '/p/' + mention.postId : null
+  }
 
   return (
     <div style={{ maxWidth: 935, margin: '0 auto', padding: '0 20px' }}>
@@ -515,7 +667,92 @@ export default function Profile() {
             {t.profile.savedTab}
           </Box>
         )}
+        {/* Tab Lưu trữ chỉ hiện cho chủ tài khoản — bài lưu trữ không ai khác xem được */}
+        {isOwn && (
+          <Box
+            component="button"
+            sx={{ ...s.tab, ...(activeTab === 'archived' ? s.tabActive : null) }}
+            onClick={() => setActiveTab('archived')}
+          >
+            🗄️ {t.profile.archivedTab}
+          </Box>
+        )}
+        {/* Tab Gắn thẻ: API /posts/tagged/me chỉ trả bài gắn thẻ chính mình nên cũng giới hạn cho chủ tài khoản */}
+        {isOwn && (
+          <Box
+            component="button"
+            sx={{ ...s.tab, ...(activeTab === 'tagged' ? s.tabActive : null) }}
+            onClick={() => setActiveTab('tagged')}
+          >
+            🏷️ {t.profile.taggedTab}
+          </Box>
+        )}
+        {/* Tab Nhắc đến — cũng chỉ dành cho chủ tài khoản */}
+        {isOwn && (
+          <Box
+            component="button"
+            sx={{ ...s.tab, ...(activeTab === 'mentions' ? s.tabActive : null) }}
+            onClick={() => setActiveTab('mentions')}
+          >
+            @ {t.profile.mentionsTab}
+          </Box>
+        )}
       </Box>
+
+      {/* Dải chip lọc bộ sưu tập — chỉ hiện ở tab Đã lưu của chính mình.
+          Chip "Tất cả" ứng với collectionId = null (không lọc), nên bỏ bộ sưu tập
+          mặc định ra khỏi danh sách chip để không có 2 chip cùng tên "Tất cả". */}
+      {activeTab === 'saved' && isOwn && (
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+          <Chip
+            label={t.profile.allCollections}
+            size="small"
+            clickable
+            color={selectedCollectionId === null ? 'primary' : 'default'}
+            onClick={function () { setSelectedCollectionId(null) }}
+          />
+          {collections.map(function (collection) {
+            return (
+              <Chip
+                key={collection._id}
+                label={collection.name + ' · ' + (collection.itemsCount || 0)}
+                size="small"
+                clickable
+                color={selectedCollectionId === collection._id ? 'primary' : 'default'}
+                onClick={function () { setSelectedCollectionId(collection._id) }}
+              />
+            )
+          })}
+          <Chip
+            label={'+ ' + t.profile.newCollection}
+            size="small"
+            clickable
+            variant="outlined"
+            onClick={function () { setShowCollectionDialog(true) }}
+          />
+
+          {/* Đổi tên / xoá chỉ áp dụng cho bộ sưu tập do user tạo, nên ẩn khi đang xem "Tất cả" */}
+          {selectedCollection && (
+            <>
+              <Chip
+                label={t.profile.renameCollection}
+                size="small"
+                clickable
+                variant="outlined"
+                onClick={function () { openRenameCollection(selectedCollection) }}
+              />
+              <Chip
+                label={t.profile.deleteCollection}
+                size="small"
+                clickable
+                variant="outlined"
+                color="error"
+                onClick={function () { setShowDeleteCollectionConfirm(true) }}
+              />
+            </>
+          )}
+        </Box>
+      )}
 
       {/* ── Tab Reels ── */}
       {activeTab === 'reels' && (
@@ -563,8 +800,57 @@ export default function Profile() {
         )
       )}
 
-      {/* Grid ảnh bài viết (Posts / Saved) — ẩn hoàn toàn khi đang ở tab Reels */}
-      {activeTab !== 'reels' && (
+      {/* ── Tab Nhắc đến ── danh sách dạng dòng vì lời nhắc không có ảnh đại diện nội dung */}
+      {activeTab === 'mentions' && (
+        mentionsLoading ? <Spinner /> :
+        mentions.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 60, color: 'var(--ig-text-light)' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>@</div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>{t.profile.noMentions}</div>
+          </div>
+        ) : (
+          <Box sx={{ borderTop: '1px solid var(--border)' }}>
+            {mentions.map(function (mention, i) {
+              var linkTo = mentionLinkTo(mention)
+              return (
+                <Box
+                  key={mention._id}
+                  sx={{
+                    display: 'flex', gap: 1.5, alignItems: 'flex-start',
+                    p: 1.5, borderBottom: '1px solid var(--border)',
+                    cursor: linkTo ? 'pointer' : 'default',
+                    ...staggerIn(i),
+                    '&:hover': linkTo ? { bgcolor: 'var(--bg-elevated)' } : null,
+                  }}
+                  onClick={function () { if (linkTo) navigate(linkTo) }}
+                >
+                  <Avatar
+                    src={mention.author?.avatarUrl}
+                    username={mention.author?.username}
+                    size="md"
+                  />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ fontSize: 14, lineHeight: 1.4 }}>
+                      <span style={{ fontWeight: 600 }}>{mention.author?.username}</span>
+                      {' '}{t.profile.mentionedYouIn}{' '}
+                      {mentionSourceLabels[mention.sourceType]}
+                    </Box>
+                    <Box sx={{ fontSize: 13, color: 'var(--ink-muted)', mt: 0.5, wordBreak: 'break-word' }}>
+                      {linkTo ? mention.preview : t.profile.mentionSourceGone}
+                    </Box>
+                    <Box sx={{ fontSize: 11, color: 'var(--ig-text-light)', mt: 0.5 }}>
+                      {timeAgo(mention.createdAt)}
+                    </Box>
+                  </Box>
+                </Box>
+              )
+            })}
+          </Box>
+        )
+      )}
+
+      {/* Grid ảnh bài viết (Posts / Saved / Lưu trữ / Gắn thẻ) — 2 tab kia có bố cục riêng */}
+      {activeTab !== 'reels' && activeTab !== 'mentions' && (
         !canViewContent ? (
           /* Tài khoản riêng tư — chưa được follow */
           <div style={{ textAlign: 'center', padding: '48px 20px', borderTop: '1px solid var(--border)' }}>
@@ -585,12 +871,14 @@ export default function Profile() {
                 : t.profile.notFollowing}
             </div>
           </div>
-        ) : postsLoading ? (
+        ) : gridLoading ? (
           <GridSkeleton />
         ) : displayPosts.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 60, color: 'var(--ig-text-light)' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>📷</div>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>{t.profile.noPosts}</div>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>{emptyIconByTab[activeTab] || '📷'}</div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>
+              {emptyTextByTab[activeTab] || t.profile.noPosts}
+            </div>
           </div>
         ) : (
           <Box sx={s.postsGrid}>
@@ -651,6 +939,56 @@ export default function Profile() {
               if (activeTab === 'saved') setSelectedPost(null)
             }
           }}
+          onArchivedChange={function () {
+            // Bài chuyển qua lại giữa 2 tab, và postsCount trên header cũng đổi theo
+            queryClient.invalidateQueries({ queryKey: ['userPosts', profile?._id] })
+            queryClient.invalidateQueries({ queryKey: ['archivedPosts', me?._id] })
+            queryClient.invalidateQueries({ queryKey: ['profile', username] })
+          }}
+        />
+      )}
+
+      {/* Dialog tạo mới / đổi tên bộ sưu tập */}
+      <Dialog
+        open={showCollectionDialog}
+        onClose={closeCollectionDialog}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>
+          {editingCollection ? t.profile.renameCollection : t.profile.newCollection}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            margin="dense"
+            label={t.profile.collectionNameLabel}
+            value={collectionNameInput}
+            inputProps={{ maxLength: 50 }}
+            onChange={function (e) { setCollectionNameInput(e.target.value) }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button variant="outline-secondary" onClick={closeCollectionDialog}>
+            {t.common.cancel}
+          </Button>
+          <Button
+            loading={saveCollectionMutation.isPending}
+            disabled={collectionNameInput.trim().length === 0}
+            onClick={function () { saveCollectionMutation.mutate(collectionNameInput.trim()) }}
+          >
+            {t.common.save}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Xác nhận xoá bộ sưu tập — nói rõ bài viết bên trong không bị mất */}
+      {showDeleteCollectionConfirm && selectedCollection && (
+        <ConfirmModal
+          message={t.profile.deleteCollectionConfirm.replace('{name}', selectedCollection.name)}
+          onConfirm={function () { deleteCollectionMutation.mutate(selectedCollection._id) }}
+          onCancel={function () { setShowDeleteCollectionConfirm(false) }}
         />
       )}
 

@@ -179,12 +179,12 @@ function ReelPlayer({ reel, isOwn, onDeleted, onUpdated }) {
   const [saving, setSaving]       = useState(false)
   const [deleting, setDeleting]   = useState(false)
 
-  const filterCss = reel.filter || reel.reelFilter || 'none'
-  const trimStart = reel.trimStart ?? reel.reelTrimStart ?? 0
-  const trimEnd   = reel.trimEnd   ?? reel.reelTrimEnd   ?? null
-  const hasAudio  = !!(reel.audioUrl || reel.reelAudioUrl)
-  const audioSrc  = reel.audioUrl  || reel.reelAudioUrl  || ''
-  const audioName = reel.audioName || reel.reelAudioName || ''
+  const filterCss = reel.filter || 'none'
+  const trimStart = reel.trimStart ?? 0
+  const trimEnd   = reel.trimEnd   ?? null
+  const hasAudio  = !!reel.audioUrl
+  const audioSrc  = reel.audioUrl  || ''
+  const audioName = reel.audioName || ''
   const mediaUrl  = reel.videoUrl  || reel.mediaUrl      || reel.media?.[0]?.url
 
   useEffect(() => {

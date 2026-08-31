@@ -28,6 +28,7 @@ const User = require('../models/User');
 const TokenBlacklist = require('../models/TokenBlacklist');
 const generateToken = require('../utils/generateToken');
 const { sendVerificationEmail, sendResetPasswordEmail } = require('../utils/mailer');
+const { createSession, removeSession } = require('../utils/loginSession');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -127,6 +128,9 @@ async function verifyEmail(req, res, next) {
     // Trả về JWT để frontend tự đăng nhập và redirect home
     var jwtToken = generateToken({ id: user._id });
 
+    // Kích hoạt email xong là đăng nhập luôn → cũng ghi phiên
+    await createSession(user._id, jwtToken, req);
+
     res.json({
       message: 'Kích hoạt tài khoản thành công!',
       token: jwtToken,
@@ -215,6 +219,9 @@ async function login(req, res, next) {
 
     const token = generateToken({ id: user._id });
 
+    // Ghi nhận phiên để user quản lý được các thiết bị đang đăng nhập
+    await createSession(user._id, token, req);
+
     res.json({
       message: 'Đăng nhập thành công',
       token: token,
@@ -265,6 +272,8 @@ async function logout(req, res, next) {
 
       // Lưu vào blacklist — MongoDB TTL tự xóa khi đến expiresAt
       await TokenBlacklist.create({ token: token, expiresAt: expiresAt });
+      // Gỡ phiên khỏi danh sách thiết bị đang đăng nhập
+      await removeSession(token);
     }
 
     res.json({ message: 'Đăng xuất thành công' });
@@ -438,6 +447,9 @@ async function googleAuth(req, res, next) {
     await user.save();
 
     var token = generateToken({ id: user._id });
+
+    // Đăng nhập bằng Google cũng ghi phiên như đăng nhập thường
+    await createSession(user._id, token, req);
 
     res.json({
       message: 'Đăng nhập thành công',

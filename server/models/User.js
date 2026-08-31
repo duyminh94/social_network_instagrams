@@ -58,6 +58,12 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Tìm kiếm user lọc theo role + isBanned rồi mới regex trên username.
+// Index này cho MongoDB thu hẹp trên index trước, không quét toàn bộ collection users.
+userSchema.index({ role: 1, isBanned: 1, username: 1 });
+// Gợi ý người dùng (Suggested) sắp theo lượng follower
+userSchema.index({ isBanned: 1, isPrivate: 1, followersCount: -1 });
+
 // Hook chạy tự động trước khi save: nếu passwordHash bị thay đổi thì hash lại
 // Nhờ hook này, controller chỉ cần gán plaintext vào passwordHash, không cần tự hash
 userSchema.pre('save', async function (next) {

@@ -49,6 +49,46 @@ export function updatePost(id, caption) {
 }
 
 // Xóa bài viết (soft delete phía server)
+// Lưu trữ bài: ẩn khỏi profile công khai và feed, chỉ chủ tài khoản xem lại được
+export function archivePost(id) {
+  return api.patch('/posts/' + id + '/archive')
+}
+
+// Bỏ lưu trữ: đưa bài trở lại profile
+export function unarchivePost(id) {
+  return api.patch('/posts/' + id + '/unarchive')
+}
+
+// Danh sách bài đã lưu trữ của chính mình
+export function getArchivedPosts(page = 1, limit = 12) {
+  return api.get('/posts/archived', { params: { page, limit } })
+}
+
+// Bài viết có gắn thẻ mình trên ảnh — chỉ xem được danh sách của chính mình
+export function getPostsTaggingMe(page = 1, limit = 12) {
+  return api.get('/posts/tagged/me', { params: { page, limit } })
+}
+
+// Nội dung nhắc @tên mình. Server trả kèm preview và postId/reelId để mở đúng nguồn
+export function getMentionsOfMe(page = 1, limit = 20) {
+  return api.get('/posts/mentions/me', { params: { page, limit } })
+}
+
+// Danh sách người được gắn thẻ trên các ảnh của một bài
+export function getPhotoTags(postId) {
+  return api.get('/posts/' + postId + '/tags')
+}
+
+// Gắn thẻ một người vào toạ độ trên ảnh — x, y là tỉ lệ 0→1 so với kích thước ảnh
+export function addPhotoTag(postId, mediaId, userId, x, y) {
+  return api.post('/posts/' + postId + '/tags', { mediaId, userId, x, y })
+}
+
+// Gỡ thẻ — chủ bài gỡ thẻ bất kỳ, người bị gắn thẻ tự gỡ thẻ của mình
+export function removePhotoTag(postId, tagId) {
+  return api.delete('/posts/' + postId + '/tags/' + tagId)
+}
+
 export function deletePost(id) {
   return api.delete('/posts/' + id)
 }

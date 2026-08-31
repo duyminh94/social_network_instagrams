@@ -32,8 +32,9 @@ import VerifiedIcon from '@mui/icons-material/Verified'
 import Button from '../common/Button'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../hooks/useAuth'
-import { likePost, unlikePost, deletePost, updatePost } from '../../features/post/postAPI'
+import { likePost, unlikePost, deletePost, updatePost, archivePost } from '../../features/post/postAPI'
 import { savePost, unsavePost } from '../../features/post/postAPI'
+import SaveToCollectionModal from './SaveToCollectionModal'
 import { useLanguage } from '../../i18n/LanguageContext'
 import Avatar from '../common/Avatar'
 import PostModal from './PostModal'
@@ -79,6 +80,7 @@ function BookmarkIcon({ filled }) {
   )
 }
 
+// onArchived(postId): bài vừa được lưu trữ nên không còn thuộc feed — trang cha ẩn nó đi
 export default function PostCard({
   post,
   onDelete,
@@ -87,6 +89,7 @@ export default function PostCard({
   suggestedReason,
   showFollow,
   onFollow,
+  onArchived,
 }) {
   const { user } = useAuth()
   var { t } = useLanguage()
@@ -106,6 +109,8 @@ export default function PostCard({
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [showReport, setShowReport] = useState(false)
+  // Dialog chọn bộ sưu tập khi lưu bài
+  const [showSaveCollection, setShowSaveCollection] = useState(false)
   // Menu 3 chấm: MUI Menu cần biết neo vào phần tử nào, giữ trong state
   var [menuAnchor, setMenuAnchor] = useState(null)
   const [mediaIndex, setMediaIndex] = useState(0)
@@ -304,6 +309,17 @@ export default function PostCard({
     }
   }
 
+  // Lưu trữ bài từ feed — chỉ có chiều đưa vào lưu trữ, vì bài đã lưu trữ không xuất hiện ở feed
+  async function handleArchive() {
+    try {
+      await archivePost(post._id)
+      toast.success(t.post.archived)
+      onArchived?.(post._id)
+    } catch {
+      toast.error(t.post.archiveFailed)
+    }
+  }
+
   // Xử lý lưu caption mới
   async function handleEdit(e) {
     e.preventDefault()
@@ -443,6 +459,15 @@ export default function PostCard({
               anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
               transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             >
+              {/* Lưu vào bộ sưu tập cụ thể — nút bookmark vẫn lưu nhanh vào mục mặc định */}
+              <MenuItem
+                key="save-collection"
+                onClick={function () { runFromMenu(function () { setShowSaveCollection(true) }) }}
+              >
+                🔖 {t.post.saveToCollection}
+              </MenuItem>
+              <Divider key="div-save-collection" />
+
               {isOwner
                 ? [
                     <MenuItem
@@ -450,6 +475,12 @@ export default function PostCard({
                       onClick={function () { runFromMenu(function () { setEditCaption(caption); setShowEdit(true) }) }}
                     >
                       ✏️ {t.post.editCaption}
+                    </MenuItem>,
+                    <MenuItem
+                      key="archive"
+                      onClick={function () { runFromMenu(handleArchive) }}
+                    >
+                      🗄️ {t.post.archivePost}
                     </MenuItem>,
                     <Divider key="div" />,
                     <MenuItem
@@ -669,6 +700,16 @@ export default function PostCard({
           targetId={post._id}
           targetType="post"
           onClose={function () { setShowReport(false) }}
+        />
+      )}
+
+      {showSaveCollection && (
+        <SaveToCollectionModal
+          targetId={post._id}
+          targetType="post"
+          isSaved={saved}
+          onClose={function () { setShowSaveCollection(false) }}
+          onSaved={function () { setSaved(true) }}
         />
       )}
     </>

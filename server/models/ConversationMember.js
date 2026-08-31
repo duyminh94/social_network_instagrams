@@ -9,6 +9,11 @@
 //   → Xảy ra khi người gửi không được người nhận follow
 //   → Người gửi (sender) luôn có status='accepted', chỉ receiver mới có thể 'pending'
 //
+// nickname: biệt danh của thành viên này TRONG nhóm/cuộc trò chuyện này
+//   → chỉ có hiệu lực ở đây, không đổi tên thật của user
+//   → bất kỳ thành viên nào cũng đặt được cho người khác (giống Messenger)
+//   → chuỗi rỗng nghĩa là dùng lại fullName/username gốc
+//
 // Khi admin duy nhất rời nhóm: thành viên vào lâu nhất tự động lên làm admin
 // lastSeenAt: dùng để tính tin nhắn chưa đọc (so sánh với createdAt của Message)
 // Unique index ngăn add cùng 1 user vào conversation 2 lần
@@ -22,6 +27,8 @@ const conversationMemberSchema = new mongoose.Schema(
     // admin: có thể thêm/xóa thành viên, đổi tên nhóm; member: thành viên thường
     role:           { type: String, enum: ['admin', 'member'], default: 'member' },
     lastSeenAt:     { type: Date, default: null }, // thời điểm đọc tin nhắn gần nhất
+    // Biệt danh riêng trong cuộc trò chuyện này — rỗng thì dùng tên thật
+    nickname:       { type: String, default: '', trim: true, maxlength: 40 },
     // accepted: hiện trong "Tin nhắn"; pending: hiện trong "Tin nhắn đang chờ"
     status:         { type: String, enum: ['accepted', 'pending'], default: 'accepted' },
   },

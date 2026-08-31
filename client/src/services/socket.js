@@ -6,7 +6,8 @@
 //   → Server không còn tin vào userId do client tự khai
 //
 // Token được đọc từ localStorage tại thời điểm connect
-// Nếu token hết hạn → server disconnect ngay → SocketContext cleanup socket
+// Nếu token sai/hết hạn → middleware io.use() phía server từ chối handshake
+//   → client nhận 'connect_error' (không phải 'disconnect') và không tự reconnect
 
 import { io } from 'socket.io-client'
 
@@ -20,6 +21,11 @@ export function connectSocket(token) {
   socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001', {
     // Gửi qua auth (tốt hơn query) — Socket.IO sẽ đặt vào socket.handshake.auth
     auth: { token: 'Bearer ' + token },
+  })
+
+  // Handshake bị từ chối (token sai/hết hạn/đã logout) — log để không thất bại im lặng
+  socket.on('connect_error', function (err) {
+    console.warn('[socket] Kết nối bị từ chối:', err.message)
   })
 
   return socket

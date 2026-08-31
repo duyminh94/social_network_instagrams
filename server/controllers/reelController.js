@@ -17,7 +17,9 @@ const Follow = require('../models/Follow');
 const Report = require('../models/Report');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 const { autoModerate } = require('../utils/autoModerate');
-const { extractHashtags } = require('../utils/hashtags');
+const { extractHashtags, syncHashtagCounts } = require('../utils/hashtags');
+const { syncMentions, removeMentions } = require('../utils/mentions');
+const Audio = require('../models/Audio');
 
 // POST /api/reels
 async function createReel(req, res, next) {
@@ -36,8 +38,23 @@ async function createReel(req, res, next) {
       User.findById(req.user.id).select('isPrivate'),
     ]);
 
+    // Nguồn nhạc theo thứ tự ưu tiên:
+    //   1. audioId — chọn bài có sẵn trong thư viện chung (models/Audio.js)
+    //   2. file audio tải lên kèm reel
+    //   3. presetAudioUrl — URL nhạc mẫu client gửi lên (giữ cho client cũ)
     let audioUrl = '';
-    if (audioFile) {
+    let audioTitle = audioName || '';
+    let audioId = null;
+
+    if (req.body.audioId) {
+      const libraryAudio = await Audio.findById(req.body.audioId).lean();
+      if (!libraryAudio) {
+        return res.status(404).json({ message: 'Không tìm thấy bài nhạc' });
+      }
+      audioUrl = libraryAudio.url;
+      audioTitle = libraryAudio.title;
+      audioId = libraryAudio._id;
+    } else if (audioFile) {
       const audioResult = await uploadToCloudinary(audioFile.buffer, 'reels/audio', audioFile.mimetype);
       audioUrl = audioResult.secure_url;
     } else if (req.body.presetAudioUrl) {
@@ -48,7 +65,8 @@ async function createReel(req, res, next) {
       userId:    req.user.id,
       videoUrl:  videoResult.secure_url,
       audioUrl,
-      audioName: audioName || '',
+      audioName: audioTitle,
+      audioId:   audioId,
       filter:    filter || '',
       trimStart: parseFloat(trimStart) || 0,
       trimEnd:   trimEnd ? parseFloat(trimEnd) : null,
@@ -57,6 +75,15 @@ async function createReel(req, res, next) {
       hashtags:  extractHashtags(caption),
       isPrivate: owner?.isPrivate || false,
     });
+
+    // Ghi nhận hashtag của reel mới vào collection hashtags
+    await syncHashtagCounts([], reel.hashtags, 'reel');
+    // Ghi nhận @username trong caption và báo cho người được nhắc
+    await syncMentions('reel', reel._id, reel.caption, req.user.id, true);
+    // Đếm số reel đang dùng bài nhạc này (phục vụ bảng xếp hạng nhạc)
+    if (audioId) {
+      await Audio.updateOne({ _id: audioId }, { $inc: { usageCount: 1 } });
+    }
 
     // Kiểm duyệt caption reel tự động — fire-and-forget, không chặn đăng
     autoModerate(reel.caption, 'reel', reel._id);
@@ -387,12 +414,20 @@ async function updateReel(req, res, next) {
     if (reel.userId.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Không có quyền sửa reel này' });
     }
+    // Giữ lại tag cũ trước khi ghi đè để biết tag nào bị thêm/bớt
+    var oldHashtags = reel.hashtags || [];
     if (req.body.caption  !== undefined) {
       reel.caption  = req.body.caption;
       reel.hashtags = extractHashtags(req.body.caption);   // tách lại hashtag theo caption mới
     }
     if (req.body.isPrivate !== undefined) reel.isPrivate = req.body.isPrivate === true || req.body.isPrivate === 'true';
     await reel.save();
+
+    await syncHashtagCounts(oldHashtags, reel.hashtags, 'reel');
+    if (req.body.caption !== undefined) {
+      await syncMentions('reel', reel._id, reel.caption, req.user.id, true);
+    }
+
     res.json({ message: 'Đã cập nhật reel', reel });
   } catch (error) {
     next(error);
@@ -419,6 +454,17 @@ async function deleteReel(req, res, next) {
       deleteFromCloudinary(reel.videoUrl, 'video'),
       reel.audioUrl ? deleteFromCloudinary(reel.audioUrl, 'video') : Promise.resolve(),
     ]);
+
+    // Reel bị xoá thì không còn tính vào số lượng của hashtag nữa
+    await syncHashtagCounts(reel.hashtags, [], 'reel');
+    await removeMentions('reel', reel._id);
+    // Trả lại số lượt dùng của bài nhạc — không để xuống âm nếu dữ liệu lệch
+    if (reel.audioId) {
+      await Audio.updateOne(
+        { _id: reel.audioId, usageCount: { $gt: 0 } },
+        { $inc: { usageCount: -1 } }
+      );
+    }
 
     res.json({ message: 'Đã xóa reel' });
   } catch (error) {

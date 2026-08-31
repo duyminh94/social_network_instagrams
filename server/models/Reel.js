@@ -15,6 +15,9 @@ const reelSchema = new mongoose.Schema(
     videoUrl:      { type: String, required: true },
     audioUrl:      { type: String, default: '' },
     audioName:     { type: String, default: '' },
+    // Bài nhạc trong thư viện chung (models/Audio.js) — null nếu reel cũ hoặc
+    // nhạc tải lên chưa đưa vào thư viện. audioUrl/audioName vẫn giữ để reel cũ chạy bình thường.
+    audioId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Audio', default: null },
     filter:        { type: String, default: '' },
     trimStart:     { type: Number, default: 0 },
     trimEnd:       { type: Number, default: null },
@@ -33,6 +36,8 @@ const reelSchema = new mongoose.Schema(
 
 reelSchema.index({ userId: 1, isDeleted: 1, createdAt: -1 });
 reelSchema.index({ isDeleted: 1, createdAt: -1 });
+// Trang "Nhạc": tất cả reel dùng chung một bài nhạc
+reelSchema.index({ audioId: 1, isDeleted: 1, createdAt: -1 });
 // Tra reel theo hashtag nhanh (trang hashtag — tab Reels)
 reelSchema.index({ hashtags: 1, isPrivate: 1, isDeleted: 1, createdAt: -1 });
 

@@ -87,6 +87,9 @@ app.use('/api/reports', require('./routes/reports'));
 app.use('/api/verification', require('./routes/verification'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/reels', require('./routes/reels'));
+app.use('/api/hashtags', require('./routes/hashtags'));
+app.use('/api/audios', require('./routes/audios'));
+app.use('/api/settings', require('./routes/settings'));
 app.use('/api/ai', require('./routes/ai'));
 
 app.get('/', function (req, res) {
@@ -107,8 +110,10 @@ const Message = require('./models/Message');
 const Conversation = require('./models/Conversation');
 const ConversationMember = require('./models/ConversationMember');
 const MessageRead = require('./models/MessageRead');
+const MessageReaction = require('./models/MessageReaction');
 const Block = require('./models/Block');
 const User = require('./models/User');
+const { runMigrations } = require('./migrations/runMigrations');
 const BANNED_CHAT_MESSAGE = 'Người dùng này đã bị khóa';
 
 // Map userId (string) → Set<socketId> để hỗ trợ đa tab/đa thiết bị
@@ -144,7 +149,11 @@ async function emitToConversation(conversationId, event, payload, excludeUserId,
 // FIX: trước đây lấy userId từ query string mà không verify JWT
 //      → bất kỳ ai cũng có thể truyền userId của người khác để giả mạo
 // Giờ server tự extract userId từ JWT đã verify — client không còn được tự khai userId
-io.on('connection', async function (socket) {
+// Middleware xác thực: chạy XONG trước khi sự kiện 'connection' được bắn ra.
+// Phải đặt ở đây (không đặt trong 'connection') vì verify token có await —
+// nếu await nằm trong 'connection' thì các socket.on(...) bên dưới chỉ được đăng ký
+// sau khi await xong, khiến event client emit ngay lúc connect bị rơi mất im lặng.
+io.use(async function (socket, next) {
   // Đọc token từ socket.handshake.auth.token hoặc socket.handshake.query.token
   var rawToken = (socket.handshake.auth && socket.handshake.auth.token)
     || socket.handshake.query.token
@@ -153,28 +162,32 @@ io.on('connection', async function (socket) {
   // Loại bỏ tiền tố 'Bearer ' nếu có
   var token = rawToken.startsWith('Bearer ') ? rawToken.slice(7) : rawToken;
 
-  var userId = null;
+  if (!token) {
+    return next(new Error('unauthorized'));
+  }
 
-  if (token) {
-    try {
-      // Verify chữ ký và thời hạn
-      var decoded = jwt.verify(token, process.env.JWT_SECRET);
+  try {
+    // Verify chữ ký và thời hạn
+    var decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Kiểm tra token chưa bị logout (blacklist)
-      var isBlacklisted = await TokenBlacklist.findOne({ token: token });
-      if (!isBlacklisted) {
-        userId = decoded.id;
-      }
-    } catch (e) {
-      // Token không hợp lệ hoặc hết hạn — userId vẫn null
+    // Kiểm tra token chưa bị logout (blacklist)
+    var isBlacklisted = await TokenBlacklist.findOne({ token: token });
+    if (isBlacklisted) {
+      return next(new Error('unauthorized'));
     }
-  }
 
-  // Không có userId hợp lệ → ngắt kết nối ngay
-  if (!userId) {
-    socket.disconnect(true);
-    return;
+    // Gắn userId đã verify vào socket để handler bên dưới dùng lại
+    socket.userId = decoded.id;
+    return next();
+  } catch (e) {
+    // Token không hợp lệ hoặc hết hạn → từ chối kết nối
+    return next(new Error('unauthorized'));
   }
+});
+
+io.on('connection', function (socket) {
+  // userId đã được middleware io.use() xác thực — không cần verify lại
+  var userId = socket.userId;
 
   // Join room theo userId → io.to(userId) sẽ emit đến TẤT CẢ tab/thiết bị của user
   socket.join(userId);
@@ -251,7 +264,10 @@ io.on('connection', async function (socket) {
         sharedPostId: sharedPostId,
       });
 
-      await Conversation.findByIdAndUpdate(conversationId, { lastActivityAt: new Date() });
+      await Conversation.findByIdAndUpdate(conversationId, {
+        lastActivityAt: new Date(),
+        lastMessageId: newMessage._id,
+      });
 
       var populated = await Message.findById(newMessage._id)
         .populate('senderId', 'username fullName avatarUrl isTrusted')
@@ -310,6 +326,62 @@ io.on('connection', async function (socket) {
       }, userId, true);
     } catch (error) {
       console.error('Lỗi mark_read socket:', error.message);
+    }
+  });
+
+  // --- Thả cảm xúc tin nhắn ---
+  // Client gửi: { messageId, reactionType }
+  // Thả lại đúng cảm xúc đang có = bỏ cảm xúc (giống REST POST /:messageId/reactions)
+  socket.on('react_message', async function (data) {
+    try {
+      var messageId = data.messageId;
+      var reactionType = data.reactionType || 'love';
+      var allowedReactions = ['like', 'love', 'haha', 'wow', 'sad', 'angry'];
+
+      if (!messageId || !userId || allowedReactions.indexOf(reactionType) === -1) {
+        return;
+      }
+
+      var message = await Message.findOne({ _id: messageId, isDeleted: false }).lean();
+      if (!message) {
+        return;
+      }
+
+      // Chỉ thành viên đã chấp nhận mới được thả cảm xúc
+      var membership = await ConversationMember.findOne({
+        conversationId: message.conversationId,
+        userId: userId,
+        status: 'accepted',
+      });
+      if (!membership) {
+        return;
+      }
+
+      var existing = await MessageReaction.findOne({ messageId: messageId, userId: userId });
+      var newReaction = reactionType;
+
+      if (existing && existing.reactionType === reactionType) {
+        await MessageReaction.deleteOne({ _id: existing._id });
+        newReaction = null;
+      } else {
+        await MessageReaction.updateOne(
+          { messageId: messageId, userId: userId },
+          {
+            $set: { reactionType: reactionType },
+            $setOnInsert: { messageId: messageId, userId: userId },
+          },
+          { upsert: true }
+        );
+      }
+
+      await emitToConversation(message.conversationId, 'message_reaction', {
+        messageId: messageId,
+        conversationId: message.conversationId.toString(),
+        userId: userId,
+        reactionType: newReaction,
+      }, null, true);
+    } catch (error) {
+      console.error('Lỗi react_message socket:', error.message);
     }
   });
 
@@ -381,19 +453,9 @@ mongoose
   .then(async function () {
     console.log('Kết nối MongoDB thành công');
 
-    // Migration: set status='accepted' cho ConversationMember chưa có field này
-    // Chạy mỗi lần khởi động nhưng chỉ cập nhật record thiếu field → an toàn
-    try {
-      var result = await ConversationMember.updateMany(
-        { status: { $exists: false } },
-        { $set: { status: 'accepted' } }
-      );
-      if (result.modifiedCount > 0) {
-        console.log('Migration ConversationMember.status: cập nhật', result.modifiedCount, 'record');
-      }
-    } catch (err) {
-      console.error('Migration ConversationMember.status thất bại:', err.message);
-    }
+    // Cập nhật dữ liệu cũ cho khớp schema mới.
+    // Tất cả bước đều idempotent (chỉ đụng record thiếu dữ liệu) → chạy mỗi lần khởi động vẫn an toàn.
+    await runMigrations();
 
     var PORT = process.env.PORT || 5001;
     server.listen(PORT, function () {

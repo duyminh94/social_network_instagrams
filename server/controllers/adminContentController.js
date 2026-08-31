@@ -11,6 +11,7 @@ const ReelComment = require('../models/ReelComment');
 const StoryComment = require('../models/StoryComment');
 const Report = require('../models/Report');
 const AdminLog = require('../models/AdminLog');
+const { applyPostsCountDelta } = require('../utils/postsCount');
 
 const CONTENT_CONFIG = {
   post: { model: Post, commentModel: Comment, contentIdField: 'postId' },
@@ -177,7 +178,7 @@ async function hideAdminContent(req, res, next) {
     await content.save();
 
     if (contentType === 'post') {
-      await User.findByIdAndUpdate(content.userId, { $inc: { postsCount: -1 } });
+      await applyPostsCountDelta(content, -1);
     }
     await AdminLog.create({
       adminId: req.user.id,
@@ -210,7 +211,7 @@ async function unhideAdminContent(req, res, next) {
     await content.save();
 
     if (contentType === 'post') {
-      await User.findByIdAndUpdate(content.userId, { $inc: { postsCount: 1 } });
+      await applyPostsCountDelta(content, 1);
     }
     await AdminLog.create({
       adminId: req.user.id,

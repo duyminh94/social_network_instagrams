@@ -19,6 +19,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const TokenBlacklist = require('../models/TokenBlacklist');
+const LoginSession = require('../models/LoginSession');
+const { hashToken } = require('../utils/loginSession');
 
 async function authMiddleware(req, res, next) {
   var authHeader = req.headers.authorization;
@@ -33,8 +35,13 @@ async function authMiddleware(req, res, next) {
     // Bước 1: Kiểm tra chữ ký và thời hạn token
     var decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Bước 2: Kiểm tra token đã bị logout chưa
-    var isBlacklisted = await TokenBlacklist.findOne({ token: token });
+    // Bước 2: Kiểm tra token đã bị logout chưa.
+    // Tra theo 2 dạng vì blacklist chứa 2 loại bản ghi:
+    //   - token gốc: do chính người dùng bấm Đăng xuất trên thiết bị này
+    //   - bản băm : do đăng xuất thiết bị đó TỪ XA (trang Cài đặt > Phiên đăng nhập),
+    //               lúc đó server chỉ có hash chứ không có token gốc
+    var tokenHash = hashToken(token);
+    var isBlacklisted = await TokenBlacklist.findOne({ token: { $in: [token, tokenHash] } });
     if (isBlacklisted) {
       return res.status(401).json({ message: 'Token đã hết hiệu lực, vui lòng đăng nhập lại' });
     }
@@ -50,6 +57,11 @@ async function authMiddleware(req, res, next) {
     if (user.isBanned) {
       return res.status(403).json({ message: 'Tài khoản đã bị khóa' });
     }
+
+    // Cập nhật thời điểm hoạt động gần nhất của phiên — để trang Cài đặt hiện
+    // đúng thứ tự thiết bị. Không await: chậm mất một chút cũng không sao,
+    // và lỗi ghi phiên không được làm hỏng request chính.
+    LoginSession.updateOne({ tokenHash: tokenHash }, { lastActiveAt: new Date() }).catch(function () {});
 
     // Gắn thông tin user vào request để controller dùng
     req.user = decoded;

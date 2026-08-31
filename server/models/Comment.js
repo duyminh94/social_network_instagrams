@@ -7,6 +7,10 @@
 //
 // isDeleted=true: xóa mềm — content vẫn còn trong DB
 // deletedBy: admin xóa vi phạm thì lưu id admin, chủ comment tự xóa thì null
+//
+// isPinned=true: chủ bài viết ghim bình luận này lên đầu danh sách.
+//   Mỗi bài chỉ ghim được 1 bình luận — controller tự bỏ ghim cái cũ khi ghim cái mới.
+//   Chỉ ghim được comment gốc, không ghim reply.
 
 const mongoose = require('mongoose');
 
@@ -20,10 +24,15 @@ const commentSchema = new mongoose.Schema(
     likesCount: { type: Number, default: 0 },
     isDeleted:  { type: Boolean, default: false },
     deletedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Bình luận được chủ bài ghim lên đầu
+    isPinned:   { type: Boolean, default: false },
+    pinnedAt:   { type: Date, default: null },
   },
   { timestamps: true }
 );
 
 commentSchema.index({ postId: 1, parentId: 1, isDeleted: 1 });
+// Lấy bình luận đã ghim của một bài (kiểm tra khi ghim cái mới)
+commentSchema.index({ postId: 1, isPinned: 1 });
 
 module.exports = mongoose.model('Comment', commentSchema);

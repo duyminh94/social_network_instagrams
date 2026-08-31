@@ -17,11 +17,16 @@ function HeartIcon({ filled }) {
   )
 }
 
-export default function CommentItem({ comment, onReply, refreshKey, isReply = false, rootCommentId, onClose }) {
+// canPin: người xem là chủ bài viết → được ghim/bỏ ghim bình luận gốc
+// onPinChanged: báo lên trên để fetch lại danh sách, vì server sắp xếp lại thứ tự (isPinned lên đầu)
+export default function CommentItem({ comment, onReply, refreshKey, isReply = false, rootCommentId, onClose, canPin = false, onPinChanged }) {
   var [liked, setLiked] = useState(comment.isLiked || false)
   var [likesCount, setLikesCount] = useState(comment.likesCount || 0)
+  var [pinning, setPinning] = useState(false)
   var parentId = rootCommentId || comment._id
   var { t } = useLanguage()
+  // Reply không ghim được (server chặn), nên chỉ hiện nút ở bình luận gốc
+  var showPinButton = canPin && !isReply
 
   var { data: repliesData } = useQuery({
     queryKey: ['comment-replies', comment._id, refreshKey],
@@ -51,6 +56,22 @@ export default function CommentItem({ comment, onReply, refreshKey, isReply = fa
     }
   }
 
+  // Ghim/bỏ ghim: không cập nhật lạc quan vì server còn phải sắp xếp lại thứ tự danh sách
+  async function handleTogglePin() {
+    if (pinning) return
+    setPinning(true)
+    try {
+      comment.isPinned
+        ? await api.delete('/comments/' + comment._id + '/pin')
+        : await api.patch('/comments/' + comment._id + '/pin')
+      if (onPinChanged) onPinChanged()
+    } catch (error) {
+      console.error(t.comment.pinFailed, error)
+    } finally {
+      setPinning(false)
+    }
+  }
+
   return (
     <>
       <div style={{ display: 'flex', gap: 10, padding: isReply ? '6px 16px 6px 54px' : '6px 16px', alignItems: 'flex-start' }}>
@@ -67,6 +88,11 @@ export default function CommentItem({ comment, onReply, refreshKey, isReply = fa
             {comment.content || comment.text}
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 4, alignItems: 'center' }}>
+            {comment.isPinned && (
+              <span style={{ fontSize: 11, color: 'var(--ig-text-light)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                📌 {t.comment.pinned}
+              </span>
+            )}
             <span style={{ fontSize: 11, color: 'var(--ig-text-light)' }}>{timeAgo(comment.createdAt)}</span>
             {likesCount > 0 && (
               <span style={{ fontSize: 11, color: 'var(--ig-text-light)', fontWeight: 600 }}>{likesCount} {t.comment.likes}</span>
@@ -81,6 +107,15 @@ export default function CommentItem({ comment, onReply, refreshKey, isReply = fa
             >
               {t.comment.reply}
             </button>
+            {showPinButton && (
+              <button
+                disabled={pinning}
+                style={{ fontSize: 11, color: 'var(--ig-text-light)', background: 'none', border: 'none', cursor: pinning ? 'default' : 'pointer', fontWeight: 600, padding: 0, opacity: pinning ? 0.5 : 1 }}
+                onClick={handleTogglePin}
+              >
+                {comment.isPinned ? t.comment.unpin : t.comment.pin}
+              </button>
+            )}
           </div>
         </div>
         <button onClick={handleLike} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', marginTop: 2 }}>

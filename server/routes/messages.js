@@ -26,6 +26,14 @@ const {
   declineConversation,
   deleteConversation,
   deleteGroup,
+  reactToMessage,
+  removeMessageReaction,
+  getMessageReactions,
+  pinMessage,
+  unpinMessage,
+  getPinnedMessages,
+  setMemberNickname,
+  forwardMessage,
 } = require('../controllers/messageController');
 
 // --- 4.2 Message API ---
@@ -42,12 +50,32 @@ const {
 router.get('/conversations', auth, getConversations);
 router.get('/conversations/pending', auth, getPendingConversations);
 router.post('/conversations', auth, createConversation);
+// /pinned phải đứng trước /:id vì Express khớp theo thứ tự
+router.get('/conversations/:id/pinned', auth, getPinnedMessages);
 router.get('/conversations/:id', auth, getMessages);
 router.post('/conversations/:id/media', auth, upload.single('file'), sendMediaMessage);
 router.post('/conversations/:id', auth, sendMessage);
 router.patch('/conversations/:id/accept', auth, acceptConversation);
 router.delete('/conversations/:id/decline', auth, declineConversation);
 router.delete('/conversations/:id', auth, deleteConversation);
+
+// --- 4.2c Thao tác trên từng tin nhắn ---
+// POST   /api/messages/:messageId/reactions  — thả / đổi cảm xúc
+// DELETE /api/messages/:messageId/reactions  — gỡ cảm xúc của mình
+// GET    /api/messages/:messageId/reactions  — ai đã thả cảm xúc gì
+// PATCH  /api/messages/:messageId/pin        — ghim tin nhắn
+// DELETE /api/messages/:messageId/pin        — bỏ ghim
+// POST   /api/messages/:messageId/forward    — chuyển tiếp sang chat khác
+//
+// Các route này phải đứng TRƯỚC DELETE /:messageId, nếu không Express khớp
+// 'reactions'/'pin' vào route xoá tin nhắn
+router.get('/:messageId/reactions', auth, getMessageReactions);
+router.post('/:messageId/reactions', auth, reactToMessage);
+router.delete('/:messageId/reactions', auth, removeMessageReaction);
+router.patch('/:messageId/pin', auth, pinMessage);
+router.delete('/:messageId/pin', auth, unpinMessage);
+router.post('/:messageId/forward', auth, forwardMessage);
+
 router.delete('/:messageId', auth, deleteMessage);
 
 // --- 4.2b Group Chat API ---
@@ -61,6 +89,8 @@ router.get('/conversations/:id/members', auth, getMembers);
 router.post('/conversations/:id/members', auth, addMember);
 router.delete('/conversations/:id/members/:memberId', auth, removeMember);
 router.patch('/conversations/:id/members/:memberId/role', auth, changeMemberRole);
+// PATCH /api/messages/conversations/:id/members/:memberId/nickname — đặt biệt danh
+router.patch('/conversations/:id/members/:memberId/nickname', auth, setMemberNickname);
 // DELETE /api/messages/conversations/:id/group — người tạo nhóm xóa cả nhóm
 router.delete('/conversations/:id/group', auth, deleteGroup);
 router.patch('/conversations/:id', auth, upload.single('avatar'), updateGroup);

@@ -216,7 +216,8 @@ export default function Home() {
             // Bọc thêm một lớp Box chỉ để chạy hiệu ứng so le — không đụng vào PostCard
             <Box key={post._id} sx={staggerIn(i)}>
               {/* onUpdated: sau khi edit caption, refetch feed để hiện caption mới nhất */}
-              <PostCard post={post} onDelete={handleDelete} onUpdated={refetch} />
+              {/* onArchived: bài lưu trữ cũng phải rời feed, ẩn bằng đúng cơ chế của bài đã xoá */}
+              <PostCard post={post} onDelete={handleDelete} onArchived={handleDelete} onUpdated={refetch} />
             </Box>
           )
         })}
@@ -230,6 +231,7 @@ export default function Home() {
               showFollow={!post.user?.isFollowing && !followingIds[post.user?._id]}
               onFollow={handleFollow}
               onDelete={handleDelete}
+              onArchived={handleDelete}
               onUpdated={refetch}
             />
           )

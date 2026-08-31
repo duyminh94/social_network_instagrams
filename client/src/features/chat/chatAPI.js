@@ -69,3 +69,52 @@ export function removeMemberFromConversation(conversationId, memberId) {
 export function deleteGroup(conversationId) {
   return api.delete('/messages/conversations/' + conversationId + '/group')
 }
+
+// --- Cảm xúc tin nhắn ---
+// Chat đang mở dùng socket emit 'react_message' cho nhanh và để mọi thành viên thấy ngay;
+// các hàm REST dưới đây dùng khi socket mất kết nối hoặc cần đọc lại danh sách đầy đủ.
+
+// Danh sách ai đã thả cảm xúc gì lên một tin nhắn
+export function getMessageReactions(messageId) {
+  return api.get('/messages/' + messageId + '/reactions')
+}
+
+// Thả cảm xúc — thả lại đúng loại đang có nghĩa là bỏ cảm xúc
+export function reactToMessage(messageId, reactionType) {
+  return api.post('/messages/' + messageId + '/reactions', { reactionType: reactionType })
+}
+
+// Gỡ cảm xúc của mình khỏi tin nhắn
+export function removeMessageReaction(messageId) {
+  return api.delete('/messages/' + messageId + '/reactions')
+}
+
+// --- Ghim tin nhắn ---
+
+// Danh sách tin nhắn đang ghim của một cuộc trò chuyện
+export function getPinnedMessages(conversationId) {
+  return api.get('/messages/conversations/' + conversationId + '/pinned')
+}
+
+export function pinMessage(messageId) {
+  return api.patch('/messages/' + messageId + '/pin')
+}
+
+export function unpinMessage(messageId) {
+  return api.delete('/messages/' + messageId + '/pin')
+}
+
+// --- Chuyển tiếp tin nhắn ---
+// conversationIds: mảng id các cuộc trò chuyện muốn chuyển tin nhắn tới
+export function forwardMessage(messageId, conversationIds) {
+  return api.post('/messages/' + messageId + '/forward', { conversationIds: conversationIds })
+}
+
+// --- Biệt danh thành viên ---
+// Truyền chuỗi rỗng để xoá biệt danh, quay về tên thật
+export function setMemberNickname(conversationId, memberId, nickname) {
+  return api.patch(
+    '/messages/conversations/' + conversationId + '/members/' + memberId + '/nickname',
+    { nickname: nickname }
+  )
+}

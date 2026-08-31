@@ -23,6 +23,11 @@ const Block = require('../models/Block');
 const User = require('../models/User');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 const { autoModerate } = require('../utils/autoModerate');
+const CloseFriend = require('../models/CloseFriend');
+const Mute = require('../models/Mute');
+const StoryHighlight = require('../models/StoryHighlight');
+const StoryPoll = require('../models/StoryPoll');
+const StoryPollVote = require('../models/StoryPollVote');
 
 async function canViewStory(story, viewerId) {
   var ownerId = story.userId?._id ? story.userId._id.toString() : story.userId.toString();
@@ -47,6 +52,15 @@ async function canViewStory(story, viewerId) {
 
   if (owner && owner.isBanned) {
     return false;
+  }
+
+  // Story dành riêng cho bạn thân: người xem phải có trong danh sách của chủ story.
+  // Kiểm tra trước cả điều kiện riêng tư vì đây là giới hạn chặt hơn.
+  if (story.audience === 'close_friends') {
+    var isCloseFriend = await CloseFriend.findOne({ userId: ownerId, friendId: viewerId }).lean();
+    if (!isCloseFriend) {
+      return false;
+    }
   }
 
   if (owner && owner.isPrivate) {
@@ -129,7 +143,10 @@ async function createChatMessageFromStoryReply(story, senderId, content, customM
     storyMediaType: story.mediaType || '',
   });
 
-  await Conversation.findByIdAndUpdate(conversation._id, { lastActivityAt: new Date() });
+  await Conversation.findByIdAndUpdate(conversation._id, {
+    lastActivityAt: new Date(),
+    lastMessageId: newMessage._id,
+  });
 
   var populated = await Message.findById(newMessage._id)
     .populate('senderId', 'username fullName avatarUrl')
@@ -186,14 +203,41 @@ async function createStory(req, res, next) {
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const mediaType = req.file.mimetype.startsWith('video') ? 'video' : 'image';
 
+    // audience: 'close_friends' → chỉ người trong danh sách bạn thân xem được
+    const audience = req.body.audience === 'close_friends' ? 'close_friends' : 'public';
+
     const story = await Story.create({
       userId: req.user.id,
       mediaUrl: uploadResult.secure_url,
       mediaType: mediaType,
       caption: caption || '',
       allowComments: allowComments,
+      audience: audience,
       expiresAt: expiresAt,
     });
+
+    // Sticker bình chọn (không bắt buộc) — client gửi kèm question + options dạng JSON
+    if (req.body.pollQuestion) {
+      var pollOptions = [];
+      try {
+        pollOptions = JSON.parse(req.body.pollOptions || '[]');
+      } catch (parseError) {
+        pollOptions = [];
+      }
+
+      // Poll cần ít nhất 2 phương án, tối đa 4
+      if (Array.isArray(pollOptions) && pollOptions.length >= 2) {
+        await StoryPoll.create({
+          storyId: story._id,
+          userId: req.user.id,
+          question: req.body.pollQuestion,
+          options: pollOptions.slice(0, 4).map(function (text) {
+            return { text: String(text) };
+          }),
+          expiresAt: expiresAt,
+        });
+      }
+    }
 
     // Kiểm duyệt caption + ảnh tự động (ảnh story; video thì chỉ quét caption)
     autoModerate(
@@ -234,6 +278,17 @@ async function getStoriesFeed(req, res, next) {
       return b.blockerId;
     });
 
+    // Những người đã đưa mình vào danh sách bạn thân của họ.
+    // Story audience='close_friends' của các tài khoản này mới được hiện cho mình.
+    var closeFriendOf = await CloseFriend.find({ friendId: viewerId }).select('userId').lean();
+    var closeFriendOfIds = closeFriendOf.map(function (c) { return c.userId.toString(); });
+
+    // Người đã bị tắt tiếng story — vẫn follow nhưng story không hiện trên story bar
+    var storyMutes = await Mute.find({ userId: viewerId, muteStories: true }).select('mutedUserId').lean();
+    storyMutes.forEach(function (m) {
+      blockedUserIds.push(m.mutedUserId);
+    });
+
     // CHỈ hiện story của người mình đang follow — giống feed bài viết.
     // (Trước đây còn nhét thêm story của TẤT CẢ tài khoản công khai → tài khoản
     //  chưa follow ai vẫn thấy story người lạ. Bỏ phần đó đi.)
@@ -241,6 +296,11 @@ async function getStoriesFeed(req, res, next) {
       userId: { $in: followingIds, $nin: blockedUserIds },
       isDeleted: false,
       expiresAt: { $gt: now },
+      // Story bạn thân chỉ lấy của người đã đưa mình vào danh sách của họ
+      $or: [
+        { audience: { $ne: 'close_friends' } },
+        { userId: { $in: closeFriendOfIds } },
+      ],
     })
       .sort({ createdAt: -1 })
       .populate('userId', 'username avatarUrl isTrusted isPrivate role isBanned');
@@ -280,6 +340,9 @@ async function getStoriesFeed(req, res, next) {
           userId: { $in: suggestedIds },
           isDeleted: false,
           expiresAt: { $gt: now },
+          // Không gợi ý story bạn thân của người lạ — mình chắc chắn không nằm trong
+          // danh sách bạn thân của họ (đây là nhóm "chưa follow")
+          audience: { $ne: 'close_friends' },
         })
           .sort({ createdAt: -1 })
           .limit(20)
@@ -372,6 +435,16 @@ async function getStory(req, res, next) {
         }
       }
 
+      // Story dành riêng cho bạn thân → người xem phải có trong danh sách của chủ story.
+      // LƯU Ý: quy tắc này được kiểm tra ở 2 nơi — tại đây và trong helper canViewStory()
+      // (dùng cho like/comment/poll). Sửa quy tắc thì phải sửa cả hai chỗ.
+      if (story.audience === 'close_friends') {
+        var isCloseFriend = await CloseFriend.findOne({ userId: ownerId, friendId: viewerId }).lean();
+        if (!isCloseFriend) {
+          return res.status(403).json({ message: 'Story này chỉ dành cho bạn thân' });
+        }
+      }
+
       // Ghi nhận lượt xem — chỉ tính 1 lần mỗi user
       const alreadyViewed = await StoryViewer.findOne({
         storyId: story._id,
@@ -400,8 +473,9 @@ async function getStory(req, res, next) {
     // Normalize userId → user
     var storyObj = story.toObject ? story.toObject() : story;
     storyObj.user = storyObj.userId || null;
-    storyObj.likesCount = await StoryLike.countDocuments({ storyId: storyObj._id });
-    storyObj.commentsCount = await StoryComment.countDocuments({ storyId: storyObj._id, isDeleted: false });
+    // likesCount/commentsCount đọc thẳng từ Story (counter $inc), không đếm lại mỗi lần mở story
+    storyObj.likesCount = storyObj.likesCount || 0;
+    storyObj.commentsCount = storyObj.commentsCount || 0;
     storyObj.isLiked = !!(await StoryLike.findOne({ storyId: storyObj._id, userId: viewerId }));
 
     res.json({ story: storyObj });
@@ -438,7 +512,16 @@ async function likeStory(req, res, next) {
       // 11000 = đã thả tim trước đó → không phải like mới
     }
 
-    var likesCount = await StoryLike.countDocuments({ storyId: story._id });
+    // Chỉ tăng counter khi là like mới. { new: true } để lấy giá trị sau khi tăng.
+    var likesCount = story.likesCount || 0;
+    if (isNewLike) {
+      var updatedStory = await Story.findByIdAndUpdate(
+        story._id,
+        { $inc: { likesCount: 1 } },
+        { new: true }
+      ).select('likesCount').lean();
+      likesCount = updatedStory ? updatedStory.likesCount : likesCount + 1;
+    }
 
     // Giống reply: thả tim cũng gửi 1 tin nhắn vào chat cho chủ story.
     // Chỉ gửi khi là like MỚI (helper tự bỏ qua nếu là story của chính mình).
@@ -471,8 +554,17 @@ async function unlikeStory(req, res, next) {
       return res.status(404).json({ message: 'Không tìm thấy story' });
     }
 
-    await StoryLike.deleteOne({ storyId: story._id, userId: req.user.id });
-    var likesCount = await StoryLike.countDocuments({ storyId: story._id });
+    // Chỉ giảm counter khi thực sự xóa được 1 bản ghi like (tránh trừ nhầm khi bấm 2 lần)
+    var deleteResult = await StoryLike.deleteOne({ storyId: story._id, userId: req.user.id });
+    var likesCount = story.likesCount || 0;
+    if (deleteResult.deletedCount > 0) {
+      var updatedStory = await Story.findByIdAndUpdate(
+        story._id,
+        { $inc: { likesCount: -1 } },
+        { new: true }
+      ).select('likesCount').lean();
+      likesCount = updatedStory ? updatedStory.likesCount : Math.max(0, likesCount - 1);
+    }
     return res.json({ message: 'Đã bỏ tim story', likesCount: likesCount, isLiked: false });
   } catch (error) {
     return next(error);
@@ -554,7 +646,12 @@ async function createStoryComment(req, res, next) {
     comment.user = comment.userId || null;
 
     var chatResult = await createChatMessageFromStoryReply(story, req.user.id, content);
-    var commentsCount = await StoryComment.countDocuments({ storyId: story._id, isDeleted: false });
+    var updatedStory = await Story.findByIdAndUpdate(
+      story._id,
+      { $inc: { commentsCount: 1 } },
+      { new: true }
+    ).select('commentsCount').lean();
+    var commentsCount = updatedStory ? updatedStory.commentsCount : (story.commentsCount || 0) + 1;
     return res.status(201).json({
       message: 'Đã bình luận story',
       comment: comment,
@@ -665,12 +762,25 @@ async function getUserStories(req, res, next) {
       }
     }
 
-    // FIX: thêm populate userId (trước đây thiếu, story không có thông tin user)
-    const stories = await Story.find({
+    // Story bạn thân chỉ hiện khi người xem có trong danh sách bạn thân của chủ tài khoản
+    var storyFilter = {
       userId: targetUserId,
       isDeleted: false,
       expiresAt: { $gt: now },
-    })
+    };
+
+    if (targetUserId !== viewerId) {
+      var isCloseFriend = await CloseFriend.findOne({
+        userId: targetUserId,
+        friendId: viewerId,
+      }).lean();
+      if (!isCloseFriend) {
+        storyFilter.audience = { $ne: 'close_friends' };
+      }
+    }
+
+    // FIX: thêm populate userId (trước đây thiếu, story không có thông tin user)
+    const stories = await Story.find(storyFilter)
       .sort({ createdAt: -1 })
       .populate('userId', 'username avatarUrl isTrusted');
 
@@ -702,6 +812,379 @@ async function getUserStories(req, res, next) {
   }
 }
 
+// ─────────────────────────── BẠN THÂN ───────────────────────────
+
+// GET /api/stories/close-friends — danh sách bạn thân của mình
+async function getCloseFriends(req, res, next) {
+  try {
+    var friends = await CloseFriend.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .populate('friendId', 'username fullName avatarUrl isTrusted')
+      .lean();
+
+    // Bỏ bản ghi có user đã bị xoá khỏi hệ thống
+    var users = friends
+      .filter(function (f) { return f.friendId; })
+      .map(function (f) { return f.friendId; });
+
+    return res.json({ closeFriends: users, total: users.length });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// POST /api/stories/close-friends/:userId — thêm một người vào danh sách bạn thân
+async function addCloseFriend(req, res, next) {
+  try {
+    var friendId = req.params.userId;
+
+    if (friendId === req.user.id) {
+      return res.status(400).json({ message: 'Không thể thêm chính mình' });
+    }
+
+    var friend = await User.findOne({ _id: friendId, isBanned: { $ne: true } }).select('username').lean();
+    if (!friend) {
+      return res.status(404).json({ message: 'Người dùng không tồn tại' });
+    }
+
+    var existing = await CloseFriend.findOne({ userId: req.user.id, friendId: friendId });
+    if (existing) {
+      return res.status(400).json({ message: 'Người này đã có trong danh sách bạn thân' });
+    }
+
+    await CloseFriend.create({ userId: req.user.id, friendId: friendId });
+
+    // Không gửi thông báo — người được thêm không biết mình có trong danh sách
+    return res.status(201).json({ message: 'Đã thêm vào danh sách bạn thân' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// DELETE /api/stories/close-friends/:userId
+async function removeCloseFriend(req, res, next) {
+  try {
+    var deleted = await CloseFriend.deleteOne({ userId: req.user.id, friendId: req.params.userId });
+    if (deleted.deletedCount === 0) {
+      return res.status(404).json({ message: 'Người này không có trong danh sách bạn thân' });
+    }
+
+    return res.json({ message: 'Đã xoá khỏi danh sách bạn thân' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// ─────────────────────────── HIGHLIGHT ───────────────────────────
+
+// GET /api/stories/highlights/user/:userId — highlight trên trang cá nhân
+async function getHighlights(req, res, next) {
+  try {
+    var highlights = await StoryHighlight.find({ userId: req.params.userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ highlights: highlights });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// POST /api/stories/highlights
+// Body: { title, storyIds: [] }
+// Chép nội dung story vào highlight — story gốc sẽ bị TTL xoá sau 24h nên phải lưu bản sao
+async function createHighlight(req, res, next) {
+  try {
+    var title = (req.body.title || '').trim();
+    if (!title) {
+      return res.status(400).json({ message: 'Tên highlight không được rỗng' });
+    }
+
+    var storyIds = Array.isArray(req.body.storyIds) ? req.body.storyIds : [];
+    if (storyIds.length === 0) {
+      return res.status(400).json({ message: 'Chọn ít nhất 1 story' });
+    }
+
+    // Chỉ lấy story của chính mình — không cho đưa story người khác vào highlight
+    var stories = await Story.find({
+      _id: { $in: storyIds },
+      userId: req.user.id,
+      isDeleted: false,
+    }).lean();
+
+    if (stories.length === 0) {
+      return res.status(404).json({ message: 'Không tìm thấy story hợp lệ' });
+    }
+
+    var items = stories.map(function (story) {
+      return {
+        storyId: story._id,
+        mediaUrl: story.mediaUrl,
+        mediaType: story.mediaType,
+        caption: story.caption || '',
+        originalCreatedAt: story.createdAt,
+      };
+    });
+
+    var highlight = await StoryHighlight.create({
+      userId: req.user.id,
+      title: title,
+      coverUrl: req.body.coverUrl || items[0].mediaUrl,
+      items: items,
+    });
+
+    return res.status(201).json({ message: 'Đã tạo highlight', highlight: highlight });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// PATCH /api/stories/highlights/:id
+// Body: { title?, coverUrl?, addStoryIds?: [] }
+async function updateHighlight(req, res, next) {
+  try {
+    var highlight = await StoryHighlight.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!highlight) {
+      return res.status(404).json({ message: 'Không tìm thấy highlight' });
+    }
+
+    if (req.body.title !== undefined) {
+      var newTitle = String(req.body.title).trim();
+      if (!newTitle) {
+        return res.status(400).json({ message: 'Tên highlight không được rỗng' });
+      }
+      highlight.title = newTitle;
+    }
+    if (req.body.coverUrl !== undefined) {
+      highlight.coverUrl = req.body.coverUrl;
+    }
+
+    // Thêm story mới vào highlight — cũng chép bản sao như lúc tạo
+    if (Array.isArray(req.body.addStoryIds) && req.body.addStoryIds.length > 0) {
+      var newStories = await Story.find({
+        _id: { $in: req.body.addStoryIds },
+        userId: req.user.id,
+        isDeleted: false,
+      }).lean();
+
+      // Bỏ qua story đã có trong highlight
+      var existingStoryIds = new Set(
+        highlight.items
+          .filter(function (item) { return item.storyId; })
+          .map(function (item) { return item.storyId.toString(); })
+      );
+
+      newStories.forEach(function (story) {
+        if (existingStoryIds.has(story._id.toString())) {
+          return;
+        }
+        highlight.items.push({
+          storyId: story._id,
+          mediaUrl: story.mediaUrl,
+          mediaType: story.mediaType,
+          caption: story.caption || '',
+          originalCreatedAt: story.createdAt,
+        });
+      });
+    }
+
+    await highlight.save();
+    return res.json({ message: 'Đã cập nhật highlight', highlight: highlight });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// DELETE /api/stories/highlights/:id/items/:itemId — gỡ 1 mục khỏi highlight
+async function removeHighlightItem(req, res, next) {
+  try {
+    var highlight = await StoryHighlight.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!highlight) {
+      return res.status(404).json({ message: 'Không tìm thấy highlight' });
+    }
+
+    var before = highlight.items.length;
+    highlight.items = highlight.items.filter(function (item) {
+      return item._id.toString() !== req.params.itemId;
+    });
+
+    if (highlight.items.length === before) {
+      return res.status(404).json({ message: 'Không tìm thấy mục này trong highlight' });
+    }
+
+    // Gỡ hết mục thì xoá luôn highlight cho gọn trang cá nhân
+    if (highlight.items.length === 0) {
+      await highlight.deleteOne();
+      return res.json({ message: 'Đã gỡ mục cuối cùng, highlight được xoá' });
+    }
+
+    // Ảnh bìa đang trỏ vào mục vừa gỡ → lấy mục đầu tiên còn lại làm bìa
+    var stillHasCover = highlight.items.some(function (item) {
+      return item.mediaUrl === highlight.coverUrl;
+    });
+    if (!stillHasCover) {
+      highlight.coverUrl = highlight.items[0].mediaUrl;
+    }
+
+    await highlight.save();
+    return res.json({ message: 'Đã gỡ mục khỏi highlight', highlight: highlight });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// DELETE /api/stories/highlights/:id
+async function deleteHighlight(req, res, next) {
+  try {
+    var deleted = await StoryHighlight.deleteOne({ _id: req.params.id, userId: req.user.id });
+    if (deleted.deletedCount === 0) {
+      return res.status(404).json({ message: 'Không tìm thấy highlight' });
+    }
+
+    return res.json({ message: 'Đã xoá highlight' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// ─────────────────────── STICKER BÌNH CHỌN ───────────────────────
+
+// GET /api/stories/:id/poll — poll của story + phương án mình đã chọn
+async function getStoryPoll(req, res, next) {
+  try {
+    var story = await Story.findOne({ _id: req.params.id, isDeleted: false })
+      .populate('userId', 'isPrivate isBanned');
+    if (!story) {
+      return res.status(404).json({ message: 'Không tìm thấy story' });
+    }
+
+    var allowed = await canViewStory(story, req.user.id);
+    if (!allowed) {
+      return res.status(403).json({ message: 'Không có quyền xem story này' });
+    }
+
+    var poll = await StoryPoll.findOne({ storyId: story._id }).lean();
+    if (!poll) {
+      return res.json({ poll: null });
+    }
+
+    var myVote = await StoryPollVote.findOne({ pollId: poll._id, userId: req.user.id }).lean();
+    poll.myOptionId = myVote ? myVote.optionId : null;
+
+    return res.json({ poll: poll });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// POST /api/stories/:id/poll/vote
+// Body: { optionId }
+// Bình chọn hoặc đổi phương án đã chọn
+async function voteStoryPoll(req, res, next) {
+  try {
+    var optionId = req.body.optionId;
+    if (!optionId) {
+      return res.status(400).json({ message: 'Thiếu optionId' });
+    }
+
+    var story = await Story.findOne({
+      _id: req.params.id,
+      isDeleted: false,
+      expiresAt: { $gt: new Date() },
+    }).populate('userId', 'isPrivate isBanned');
+    if (!story) {
+      return res.status(404).json({ message: 'Không tìm thấy story' });
+    }
+
+    var allowed = await canViewStory(story, req.user.id);
+    if (!allowed) {
+      return res.status(403).json({ message: 'Không có quyền bình chọn trong story này' });
+    }
+
+    var poll = await StoryPoll.findOne({ storyId: story._id });
+    if (!poll) {
+      return res.status(404).json({ message: 'Story này không có bình chọn' });
+    }
+
+    // Phương án phải thuộc đúng poll này
+    var option = poll.options.id(optionId);
+    if (!option) {
+      return res.status(400).json({ message: 'Phương án không hợp lệ' });
+    }
+
+    var existingVote = await StoryPollVote.findOne({ pollId: poll._id, userId: req.user.id });
+
+    if (existingVote) {
+      // Bấm lại đúng phương án cũ → không đổi gì
+      if (existingVote.optionId.toString() === optionId) {
+        return res.json({ message: 'Bạn đã chọn phương án này rồi', poll: poll });
+      }
+
+      // Đổi phương án: trừ phiếu chỗ cũ, cộng chỗ mới, tổng phiếu giữ nguyên
+      var oldOption = poll.options.id(existingVote.optionId);
+      if (oldOption && oldOption.votesCount > 0) {
+        oldOption.votesCount -= 1;
+      }
+      option.votesCount += 1;
+      await poll.save();
+
+      existingVote.optionId = optionId;
+      await existingVote.save();
+
+      return res.json({ message: 'Đã đổi phương án', poll: poll });
+    }
+
+    // Bình chọn lần đầu
+    await StoryPollVote.create({
+      pollId: poll._id,
+      userId: req.user.id,
+      optionId: optionId,
+      expiresAt: poll.expiresAt,
+    });
+
+    option.votesCount += 1;
+    poll.totalVotes += 1;
+    await poll.save();
+
+    return res.status(201).json({ message: 'Đã bình chọn', poll: poll });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// GET /api/stories/:id/poll/voters — chủ story xem ai chọn phương án nào
+async function getPollVoters(req, res, next) {
+  try {
+    var story = await Story.findOne({ _id: req.params.id, isDeleted: false });
+    if (!story) {
+      return res.status(404).json({ message: 'Không tìm thấy story' });
+    }
+    if (story.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Chỉ chủ story mới xem được danh sách bình chọn' });
+    }
+
+    var poll = await StoryPoll.findOne({ storyId: story._id }).lean();
+    if (!poll) {
+      return res.json({ voters: [] });
+    }
+
+    var votes = await StoryPollVote.find({ pollId: poll._id })
+      .sort({ createdAt: -1 })
+      .populate('userId', 'username fullName avatarUrl isTrusted')
+      .lean();
+
+    var voters = votes
+      .filter(function (v) { return v.userId; })
+      .map(function (v) {
+        return { user: v.userId, optionId: v.optionId, votedAt: v.createdAt };
+      });
+
+    return res.json({ voters: voters, poll: poll });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   createStory,
   getStoriesFeed,
@@ -713,4 +1196,15 @@ module.exports = {
   unlikeStory,
   getStoryComments,
   createStoryComment,
+  getCloseFriends,
+  addCloseFriend,
+  removeCloseFriend,
+  getHighlights,
+  createHighlight,
+  updateHighlight,
+  removeHighlightItem,
+  deleteHighlight,
+  getStoryPoll,
+  voteStoryPoll,
+  getPollVoters,
 };

@@ -11,11 +11,29 @@
 // Không tạo thông báo khi recipientId === senderId (user tự like/comment bài mình)
 
 const Notification = require('../models/Notification');
+const UserSettings = require('../models/UserSettings');
+const Restrict = require('../models/Restrict');
 
 // Tạo thông báo và emit realtime nếu người nhận đang online
 // Không tạo thông báo nếu người gửi = người nhận (tự thao tác)
 async function createNotification(recipientId, senderId, type, referenceId, referenceType, message) {
   if (recipientId.toString() === senderId.toString()) {
+    return;
+  }
+
+  // Người nhận đã hạn chế người gửi → im lặng bỏ qua, không báo cho ai biết
+  var isRestricted = await Restrict.findOne({
+    userId: recipientId,
+    restrictedUserId: senderId,
+  }).lean();
+  if (isRestricted) {
+    return;
+  }
+
+  // Người nhận đã tắt loại thông báo này trong Cài đặt → không tạo.
+  // Chưa có document cài đặt nghĩa là đang dùng mặc định (bật hết) → vẫn gửi.
+  var settings = await UserSettings.findOne({ userId: recipientId }).select('notifications').lean();
+  if (settings && settings.notifications && settings.notifications[type] === false) {
     return;
   }
 

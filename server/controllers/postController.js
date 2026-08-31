@@ -18,7 +18,19 @@ const Story = require('../models/Story');
 const StoryViewer = require('../models/StoryViewer');
 const { uploadToCloudinary } = require('../utils/cloudinary');
 const { autoModerate } = require('../utils/autoModerate');
-const { extractHashtags } = require('../utils/hashtags');
+const { extractHashtags, syncHashtagCounts } = require('../utils/hashtags');
+const HashtagFollow = require('../models/HashtagFollow');
+const Hashtag = require('../models/Hashtag');
+const { syncMentions, removeMentions } = require('../utils/mentions');
+const PostView = require('../models/PostView');
+const PhotoTag = require('../models/PhotoTag');
+const Mention = require('../models/Mention');
+const Comment = require('../models/Comment');
+const Reel = require('../models/Reel');
+const Mute = require('../models/Mute');
+const Restrict = require('../models/Restrict');
+const { createNotification } = require('../utils/notification');
+const { applyPostsCountDelta } = require('../utils/postsCount');
 
 function parseVideoThumbnails(rawValue) {
   if (!rawValue) return [];
@@ -76,11 +88,12 @@ async function attachLikeAndSave(posts, userId) {
 
   var saves = await SavedPost.find({
     userId: userId,
-    postId: { $in: postIds },
+    targetType: 'post',
+    targetId: { $in: postIds },
   }).lean();
 
   var likedSet = new Set(likes.map(function (l) { return l.targetId.toString(); }));
-  var savedSet = new Set(saves.map(function (s) { return s.postId.toString(); }));
+  var savedSet = new Set(saves.map(function (s) { return s.targetId.toString(); }));
   // Map targetId → loại cảm xúc của user (để hiện đúng emoji trên nút)
   var reactionMap = {};
   likes.forEach(function (l) { reactionMap[l.targetId.toString()] = l.reactionType || 'like'; });
@@ -238,6 +251,10 @@ async function createPost(req, res, next) {
     autoModerate(post.caption, 'post', post._id, moderationImageUrls);
 
     await User.findByIdAndUpdate(req.user.id, { $inc: { postsCount: 1 } });
+    // Ghi nhận hashtag của bài mới vào collection hashtags (tạo tag nếu chưa tồn tại)
+    await syncHashtagCounts([], post.hashtags, 'post');
+    // Ghi nhận @username trong caption và báo cho người được nhắc
+    await syncMentions('post', post._id, post.caption, req.user.id, true);
 
     const creator = await User.findById(req.user.id).select('username fullName avatarUrl isTrusted');
     var postObj = post.toObject();
@@ -267,7 +284,38 @@ async function getFeed(req, res, next) {
     const bannedUsers = await User.find({ isBanned: true }, '_id').lean();
     const bannedIds = bannedUsers.map(function (u) { return u._id; });
 
-    var feedFilter = { userId: { $in: feedUserIds, $nin: bannedIds }, isDeleted: false };
+    // Hashtag user đang theo dõi — bài mang tag này cũng vào feed dù chưa follow tác giả
+    const followedTags = await HashtagFollow.find({ userId: req.user.id }).select('name').lean();
+    const followedTagNames = followedTags.map(function (f) { return f.name; });
+
+    // Người đã bị tắt tiếng bài viết — vẫn follow nhưng bài không hiện trong feed
+    const mutes = await Mute.find({ userId: req.user.id, mutePosts: true }).select('mutedUserId').lean();
+    const mutedIds = mutes.map(function (m) { return m.mutedUserId; });
+
+    // Điều kiện vào feed: bài của người mình follow (và của chính mình),
+    // HOẶC bài công khai mang hashtag mình theo dõi
+    var feedConditions = [{ userId: { $in: feedUserIds } }];
+    if (followedTagNames.length > 0) {
+      // Chỉ lấy bài của tài khoản công khai — không lộ bài của tài khoản riêng tư chưa follow
+      var privateUsers = await User.find({ isPrivate: true }, '_id').lean();
+      var privateIds = privateUsers
+        .map(function (u) { return u._id.toString(); })
+        .filter(function (id) { return id !== req.user.id; });
+
+      feedConditions.push({
+        hashtags: { $in: followedTagNames },
+        userId: { $nin: privateIds },
+      });
+    }
+
+    var feedFilter = {
+      $or: feedConditions,
+      // Loại cả tài khoản bị khoá lẫn người mình đã tắt tiếng
+      userId: { $nin: bannedIds.concat(mutedIds) },
+      isDeleted: false,
+      // Bài đã lưu trữ không hiện trong feed, kể cả feed của chính chủ
+      isArchived: { $ne: true },
+    };
     var total = await Post.countDocuments(feedFilter);
     var totalPages = Math.ceil(total / limit);
 
@@ -392,6 +440,7 @@ async function getExplore(req, res, next) {
 
     var exploreFilter = {
       isDeleted: false,
+      isArchived: { $ne: true },                            // bài đã lưu trữ không gợi ý cho ai
       _id: { $nin: likedPostIds },                          // bỏ bài mình đã like rồi
       userId: { $nin: Array.from(excludedUserIds) },        // chặn cả nhánh co-like về tác giả bị loại
       $or: orConditions,
@@ -434,6 +483,11 @@ async function getPost(req, res, next) {
     var ownerId = post.userId._id.toString();
     var isOwner = viewerId && ownerId === viewerId;
     if (post.userId.isBanned && !isOwner) {
+      return res.status(404).json({ message: 'Không tìm thấy bài viết' });
+    }
+
+    // Bài đã lưu trữ chỉ chủ tài khoản xem được — với người khác coi như không tồn tại
+    if (post.isArchived && !isOwner) {
       return res.status(404).json({ message: 'Không tìm thấy bài viết' });
     }
 
@@ -487,7 +541,7 @@ async function getPost(req, res, next) {
     postObj.myReaction = null;
     if (viewerId) {
       var myLike = await Like.findOne({ userId: viewerId, targetType: 'post', targetId: post._id }).lean();
-      var mySave = await SavedPost.findOne({ userId: viewerId, postId: post._id }).lean();
+      var mySave = await SavedPost.findOne({ userId: viewerId, targetType: 'post', targetId: post._id }).lean();
       postObj.isLiked = !!myLike;
       postObj.myReaction = myLike ? (myLike.reactionType || 'like') : null;
       postObj.isSaved = !!mySave;
@@ -513,12 +567,20 @@ async function updatePost(req, res, next) {
       return res.status(403).json({ message: 'Không có quyền sửa bài này' });
     }
 
+    // Giữ lại tag cũ trước khi ghi đè để biết tag nào bị thêm/bớt
+    var oldHashtags = post.hashtags || [];
     if (req.body.caption !== undefined) {
       post.caption = req.body.caption;
       post.hashtags = extractHashtags(req.body.caption);   // tách lại hashtag theo caption mới
     }
     if (req.body.location !== undefined) post.location = req.body.location;
     await post.save();
+
+    await syncHashtagCounts(oldHashtags, post.hashtags, 'post');
+    // Caption đổi → tính lại danh sách người được nhắc, chỉ báo cho người mới
+    if (req.body.caption !== undefined) {
+      await syncMentions('post', post._id, post.caption, req.user.id, true);
+    }
 
     res.json({ message: 'Cập nhật bài viết thành công', post });
   } catch (error) {
@@ -527,7 +589,7 @@ async function updatePost(req, res, next) {
 }
 
 // DELETE /api/posts/:id
-// Xóa mềm: set isDeleted = true, giảm postsCount, bài vẫn còn trong DB
+// Xóa mềm: set isDeleted = true, giảm postsCount (trừ bài đã lưu trữ), bài vẫn còn trong DB
 async function deletePost(req, res, next) {
   try {
     const post = await Post.findOne({ _id: req.params.id, isDeleted: false });
@@ -543,7 +605,10 @@ async function deletePost(req, res, next) {
     post.isDeleted = true;
     await post.save();
 
-    await User.findByIdAndUpdate(req.user.id, { $inc: { postsCount: -1 } });
+    await applyPostsCountDelta(post, -1);
+    // Bài bị ẩn thì không còn tính vào số lượng của hashtag nữa
+    await syncHashtagCounts(post.hashtags, [], 'post');
+    await removeMentions('post', post._id);
 
     res.json({ message: 'Đã xóa bài viết' });
   } catch (error) {
@@ -595,7 +660,8 @@ async function getUserPosts(req, res, next) {
       }
     }
 
-    var userPostFilter = { userId: targetUserId, isDeleted: false };
+    // Bài đã lưu trữ chỉ chủ tài khoản xem được, qua GET /api/posts/archived
+    var userPostFilter = { userId: targetUserId, isDeleted: false, isArchived: { $ne: true } };
     var total = await Post.countDocuments(userPostFilter);
     var totalPages = Math.ceil(total / limit);
 
@@ -612,65 +678,6 @@ async function getUserPosts(req, res, next) {
     res.json({ posts: finalPosts, page, limit, total, totalPages });
   } catch (error) {
     next(error);
-  }
-}
-
-// POST /api/posts/reel
-// fields: media (video), audio (optional), caption, filter, trimStart, trimEnd, duration, isPrivate
-async function createReel(req, res, next) {
-  try {
-    const videoFile = req.files?.media?.[0]
-    const audioFile = req.files?.audio?.[0]
-
-    if (!videoFile) {
-      return res.status(400).json({ message: 'Chưa chọn video' })
-    }
-
-    const { caption, filter, trimStart, trimEnd, duration, audioName } = req.body
-
-    // Upload video
-    const videoResult = await uploadToCloudinary(videoFile.buffer, 'reels', videoFile.mimetype)
-
-    // Upload audio nếu có, hoặc dùng URL preset
-    let audioUrl = ''
-    if (audioFile) {
-      const audioResult = await uploadToCloudinary(audioFile.buffer, 'reels/audio', audioFile.mimetype)
-      audioUrl = audioResult.secure_url
-    } else if (req.body.presetAudioUrl) {
-      audioUrl = req.body.presetAudioUrl
-    }
-
-    const post = await Post.create({
-      userId: req.user.id,
-      caption: caption || '',
-      type: 'video',
-      reelAudioUrl: audioUrl,
-      reelAudioName: audioName || '',
-      reelFilter: filter || '',
-      reelTrimStart: parseFloat(trimStart) || 0,
-      reelTrimEnd: trimEnd ? parseFloat(trimEnd) : null,
-      reelDuration: duration ? parseFloat(duration) : null,
-    })
-
-    const mediaDoc = await PostMedia.create({
-      postId: post._id,
-      mediaType: 'video',
-      url: videoResult.secure_url,
-      thumbnailUrl: '',
-      displayOrder: 0,
-    })
-
-    await User.findByIdAndUpdate(req.user.id, { $inc: { postsCount: 1 } })
-
-    const creator = await User.findById(req.user.id).select('username fullName avatarUrl')
-    const postObj = post.toObject()
-    postObj.user = creator.toObject()
-    postObj.media = [mediaDoc]
-    postObj.mediaUrl = mediaDoc.url
-
-    res.status(201).json({ message: 'Đăng reel thành công', post: postObj })
-  } catch (error) {
-    next(error)
   }
 }
 
@@ -701,7 +708,7 @@ async function getPostsByHashtag(req, res, next) {
     }
 
     var excludeIds = await getDiscoverExcludeIds(viewerId);
-    var filter = { hashtags: tag, isDeleted: false };
+    var filter = { hashtags: tag, isDeleted: false, isArchived: { $ne: true } };
     if (excludeIds.length > 0) filter.userId = { $nin: excludeIds };
 
     var total = await Post.countDocuments(filter);
@@ -739,6 +746,7 @@ async function searchPosts(req, res, next) {
 
     var filter = {
       isDeleted: false,
+      isArchived: { $ne: true },
       $or: [
         { caption: { $regex: safe, $options: 'i' } },
         { hashtags: tagQuery },
@@ -764,6 +772,9 @@ async function searchPosts(req, res, next) {
 }
 
 // GET /api/posts/tags/search?q=&limit=  — gợi ý hashtag khớp + số bài (tab Tags)
+//
+// Trước đây phải aggregate $unwind toàn bộ collection posts cho mỗi lần gõ phím.
+// Giờ đọc thẳng collection hashtags — counter đã được cập nhật sẵn lúc đăng/sửa/xoá bài.
 async function searchTags(req, res, next) {
   try {
     var q = (req.query.q || '').replace(/^#/, '').trim().toLowerCase();
@@ -771,25 +782,346 @@ async function searchTags(req, res, next) {
     if (!q) return res.json({ tags: [] });
 
     var safe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    var hiddenUsers = await User.find({ $or: [{ isPrivate: true }, { isBanned: true }] }, '_id').lean();
-    var hiddenIds = hiddenUsers.map(function (u) { return u._id; });
-    var rows = await Post.aggregate([
-      { $match: { isDeleted: false, userId: { $nin: hiddenIds }, hashtags: { $regex: safe } } },
-      { $unwind: '$hashtags' },
-      { $match: { hashtags: { $regex: safe } } },
-      { $group: { _id: '$hashtags', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: limit },
-    ]);
 
-    var tags = rows.map(function (r) { return { tag: r._id, count: r.count }; });
+    var hashtags = await Hashtag.find({ name: { $regex: safe } })
+      .sort({ postsCount: -1, reelsCount: -1 })
+      .limit(limit)
+      .lean();
+
+    // Giữ nguyên hình dạng response cũ { tag, count } để client không phải sửa
+    var tags = hashtags.map(function (h) {
+      return { tag: h.name, count: h.postsCount + h.reelsCount };
+    });
     res.json({ tags: tags });
   } catch (error) {
     next(error);
   }
 }
 
+// PATCH /api/posts/:id/archive
+// Lưu trữ bài: ẩn khỏi profile công khai nhưng chủ tài khoản vẫn xem lại được
+async function archivePost(req, res, next) {
+  try {
+    var post = await Post.findOne({ _id: req.params.id, isDeleted: false });
+    if (!post) {
+      return res.status(404).json({ message: 'Không tìm thấy bài viết' });
+    }
+    if (post.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Không có quyền lưu trữ bài này' });
+    }
+    if (post.isArchived) {
+      return res.status(400).json({ message: 'Bài viết đã được lưu trữ' });
+    }
+
+    post.isArchived = true;
+    post.archivedAt = new Date();
+    await post.save();
+
+    // Bài lưu trữ không hiện công khai nữa → trừ khỏi số bài trên profile
+    await User.findByIdAndUpdate(post.userId, { $inc: { postsCount: -1 } });
+
+    return res.json({ message: 'Đã lưu trữ bài viết' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// PATCH /api/posts/:id/unarchive
+async function unarchivePost(req, res, next) {
+  try {
+    var post = await Post.findOne({ _id: req.params.id, isDeleted: false });
+    if (!post) {
+      return res.status(404).json({ message: 'Không tìm thấy bài viết' });
+    }
+    if (post.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Không có quyền bỏ lưu trữ bài này' });
+    }
+    if (!post.isArchived) {
+      return res.status(400).json({ message: 'Bài viết không ở trong mục lưu trữ' });
+    }
+
+    post.isArchived = false;
+    post.archivedAt = null;
+    await post.save();
+
+    await User.findByIdAndUpdate(post.userId, { $inc: { postsCount: 1 } });
+
+    return res.json({ message: 'Đã bỏ lưu trữ bài viết' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// GET /api/posts/archived?page=&limit=
+// Danh sách bài đã lưu trữ — chỉ chủ tài khoản xem được
+async function getArchivedPosts(req, res, next) {
+  try {
+    var { page, limit, skip } = getPagination(req, 12);
+
+    var filter = { userId: req.user.id, isArchived: true, isDeleted: false };
+    var total = await Post.countDocuments(filter);
+    var totalPages = Math.ceil(total / limit);
+
+    var posts = await Post.find(filter)
+      .sort({ archivedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('userId', 'username fullName avatarUrl isTrusted');
+
+    var normalizedPosts = await attachMedia(posts);
+    var finalPosts = await attachLikeAndSave(normalizedPosts, req.user.id);
+
+    return res.json({ posts: finalPosts, page, limit, total, totalPages });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// POST /api/posts/:id/view
+// Ghi nhận user đã xem bài — dùng để trang Khám phá không lặp lại nội dung cũ
+async function recordPostView(req, res, next) {
+  try {
+    var post = await Post.findOne({ _id: req.params.id, isDeleted: false }).select('_id userId').lean();
+    if (!post) {
+      return res.status(404).json({ message: 'Không tìm thấy bài viết' });
+    }
+
+    // Chủ bài tự xem thì không tính lượt (giống StoryViewer)
+    if (post.userId.toString() === req.user.id) {
+      return res.json({ message: 'Bỏ qua lượt xem của chính chủ' });
+    }
+
+    // upsert: chưa có thì tạo mới, có rồi thì cộng dồn.
+    // { new: true } trả về document SAU khi cập nhật để đọc viewCount mới nhất.
+    var view = await PostView.findOneAndUpdate(
+      { userId: req.user.id, postId: post._id },
+      { $inc: { viewCount: 1 }, $set: { lastViewedAt: new Date() } },
+      { upsert: true, new: true }
+    );
+
+    // viewCount === 1 nghĩa là bản ghi vừa được tạo → đây là lần xem đầu tiên của user này.
+    // Post.viewsCount đếm số NGƯỜI đã xem, không phải tổng số lượt.
+    if (view.viewCount === 1) {
+      await Post.findByIdAndUpdate(post._id, { $inc: { viewsCount: 1 } });
+    }
+
+    return res.json({ message: 'Đã ghi nhận lượt xem' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// POST /api/posts/:id/tags
+// Body: { mediaId, userId, x, y } — chỉ chủ bài viết mới gắn thẻ được
+async function addPhotoTag(req, res, next) {
+  try {
+    var post = await Post.findOne({ _id: req.params.id, isDeleted: false });
+    if (!post) {
+      return res.status(404).json({ message: 'Không tìm thấy bài viết' });
+    }
+    if (post.userId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Chỉ chủ bài viết mới gắn thẻ được' });
+    }
+
+    var { mediaId, userId, x, y } = req.body;
+    if (!mediaId || !userId) {
+      return res.status(400).json({ message: 'Thiếu mediaId hoặc userId' });
+    }
+
+    // Ảnh phải thuộc đúng bài này
+    var media = await PostMedia.findOne({ _id: mediaId, postId: post._id }).lean();
+    if (!media) {
+      return res.status(404).json({ message: 'Ảnh không thuộc bài viết này' });
+    }
+
+    var taggedUser = await User.findOne({ _id: userId, isBanned: { $ne: true } }).select('username').lean();
+    if (!taggedUser) {
+      return res.status(404).json({ message: 'Người dùng không tồn tại' });
+    }
+
+    var existing = await PhotoTag.findOne({ mediaId: mediaId, userId: userId });
+    if (existing) {
+      return res.status(400).json({ message: 'Đã gắn thẻ người này trên ảnh rồi' });
+    }
+
+    var tag = await PhotoTag.create({
+      postId: post._id,
+      mediaId: mediaId,
+      userId: userId,
+      // Không có toạ độ thì đặt giữa ảnh
+      x: typeof x === 'number' ? x : 0.5,
+      y: typeof y === 'number' ? y : 0.5,
+      taggedBy: req.user.id,
+    });
+
+    await createNotification(userId, req.user.id, 'photo_tag', post._id, 'post');
+
+    return res.status(201).json({ message: 'Đã gắn thẻ', tag: tag });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// GET /api/posts/:id/tags — danh sách người được gắn thẻ trên các ảnh của bài
+async function getPhotoTags(req, res, next) {
+  try {
+    var tags = await PhotoTag.find({ postId: req.params.id })
+      .populate('userId', 'username fullName avatarUrl isTrusted')
+      .lean();
+
+    // Đổi tên field cho client dùng thuận: userId (object) → user
+    var normalized = tags.map(function (tag) {
+      tag.user = tag.userId || null;
+      return tag;
+    });
+
+    return res.json({ tags: normalized });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// DELETE /api/posts/:id/tags/:tagId
+// Chủ bài gỡ thẻ bất kỳ; người bị gắn thẻ được tự gỡ thẻ của mình
+async function removePhotoTag(req, res, next) {
+  try {
+    var tag = await PhotoTag.findOne({ _id: req.params.tagId, postId: req.params.id });
+    if (!tag) {
+      return res.status(404).json({ message: 'Không tìm thấy thẻ' });
+    }
+
+    var post = await Post.findById(req.params.id).select('userId').lean();
+    var isPostOwner = post && post.userId.toString() === req.user.id;
+    var isTaggedUser = tag.userId.toString() === req.user.id;
+
+    if (!isPostOwner && !isTaggedUser) {
+      return res.status(403).json({ message: 'Không có quyền gỡ thẻ này' });
+    }
+
+    await tag.deleteOne();
+    return res.json({ message: 'Đã gỡ thẻ' });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// GET /api/posts/tagged/me?page=&limit=
+// Bài viết có gắn thẻ mình trên ảnh
+async function getPostsTaggingMe(req, res, next) {
+  try {
+    var { page, limit, skip } = getPagination(req, 12);
+
+    var total = await PhotoTag.countDocuments({ userId: req.user.id });
+    var totalPages = Math.ceil(total / limit);
+
+    var tags = await PhotoTag.find({ userId: req.user.id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select('postId')
+      .lean();
+
+    var postIds = tags.map(function (t) { return t.postId; });
+    var posts = await Post.find({ _id: { $in: postIds }, isDeleted: false, isArchived: { $ne: true } })
+      .populate('userId', 'username fullName avatarUrl isTrusted');
+
+    var normalizedPosts = await attachMedia(posts);
+    var finalPosts = await attachLikeAndSave(normalizedPosts, req.user.id);
+
+    return res.json({ posts: finalPosts, page, limit, total, totalPages });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// Cắt bớt nội dung dài để danh sách lời nhắc không bị vỡ layout
+function buildPreview(text) {
+  var content = text || '';
+  return content.length > 120 ? content.slice(0, 120) + '…' : content;
+}
+
+// Gắn nội dung nguồn vào từng lời nhắc: preview để người xem nhận ra ngữ cảnh,
+// postId để bấm vào mở đúng bài (lời nhắc trong bình luận chỉ có commentId).
+//
+// Ba loại nguồn gom thành 3 query $in chạy song song — số round-trip cố định là 3
+// dù danh sách có bao nhiêu lời nhắc, tránh N+1. Tra ngược bằng Map nên map lại là O(n).
+async function attachMentionSources(mentions) {
+  var postIds = [];
+  var reelIds = [];
+  var commentIds = [];
+
+  mentions.forEach(function (mention) {
+    var id = mention.sourceId;
+    if (mention.sourceType === 'post') postIds.push(id);
+    else if (mention.sourceType === 'reel') reelIds.push(id);
+    else if (mention.sourceType === 'comment') commentIds.push(id);
+  });
+
+  var [posts, reels, comments] = await Promise.all([
+    Post.find({ _id: { $in: postIds }, isDeleted: false }).select('caption').lean(),
+    Reel.find({ _id: { $in: reelIds }, isDeleted: false }).select('caption').lean(),
+    Comment.find({ _id: { $in: commentIds }, isDeleted: false }).select('content postId').lean(),
+  ]);
+
+  var postById = new Map(posts.map(function (p) { return [p._id.toString(), p]; }));
+  var reelById = new Map(reels.map(function (r) { return [r._id.toString(), r]; }));
+  var commentById = new Map(comments.map(function (c) { return [c._id.toString(), c]; }));
+
+  return mentions.map(function (mention) {
+    var sourceId = mention.sourceId.toString();
+
+    if (mention.sourceType === 'post') {
+      var post = postById.get(sourceId);
+      mention.preview = buildPreview(post?.caption);
+      // Nguồn đã bị xoá thì không có gì để mở — client dựa vào postId=null để tắt link
+      mention.postId = post ? sourceId : null;
+    } else if (mention.sourceType === 'reel') {
+      var reel = reelById.get(sourceId);
+      mention.preview = buildPreview(reel?.caption);
+      mention.reelId = reel ? sourceId : null;
+    } else {
+      var comment = commentById.get(sourceId);
+      mention.preview = buildPreview(comment?.content);
+      // Lời nhắc trong bình luận: mở bài chứa bình luận đó
+      mention.postId = comment ? comment.postId.toString() : null;
+    }
+
+    return mention;
+  });
+}
+
+// GET /api/posts/mentions/me?page=&limit=
+// Nội dung có nhắc tên mình bằng @username
+async function getMentionsOfMe(req, res, next) {
+  try {
+    var { page, limit, skip } = getPagination(req, 20);
+
+    var total = await Mention.countDocuments({ mentionedUserId: req.user.id });
+    var totalPages = Math.ceil(total / limit);
+
+    var mentions = await Mention.find({ mentionedUserId: req.user.id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('authorId', 'username fullName avatarUrl isTrusted')
+      .lean();
+
+    var normalized = mentions.map(function (m) {
+      m.author = m.authorId || null;
+      return m;
+    });
+
+    var enriched = await attachMentionSources(normalized);
+
+    return res.json({ mentions: enriched, page, limit, total, totalPages });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
-  createPost, createReel, getFeed, getExplore, getPost, updatePost, deletePost, getUserPosts,
+  createPost, getFeed, getExplore, getPost, updatePost, deletePost, getUserPosts,
   getPostsByHashtag, searchPosts, searchTags,
+  archivePost, unarchivePost, getArchivedPosts, recordPostView,
+  addPhotoTag, getPhotoTags, removePhotoTag, getPostsTaggingMe, getMentionsOfMe,
 };

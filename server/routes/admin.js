@@ -27,6 +27,8 @@ const {
   deleteStory,
   getLogs,
   getStats,
+  getAppeals,
+  handleAppeal,
 } = require('../controllers/adminController');
 const {
   getAdminContentList,
@@ -77,6 +79,10 @@ router.patch('/verifications/:id', adminAuth, superAdminOnly, handleVerification
 router.delete('/posts/:id', adminAuth, deletePost);
 router.delete('/comments/:id', adminAuth, deleteComment);
 router.delete('/stories/:id', adminAuth, deleteStory);
+
+// --- Kháng cáo của người dùng (bị khoá tài khoản / bị gỡ nội dung) ---
+router.get('/appeals', adminAuth, getAppeals);
+router.patch('/appeals/:id', adminAuth, superAdminOnly, handleAppeal);
 
 // --- Logs & Stats ---
 router.get('/logs', adminAuth, superAdminOnly, getLogs);

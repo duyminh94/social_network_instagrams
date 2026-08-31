@@ -6,7 +6,9 @@ import Box from '@mui/material/Box'
 import { CommentSkeleton } from '../common/Skeletons'
 import { staggerIn } from '../../theme/animations'
 
-export default function CommentList({ postId, refreshKey, onReply, onClose }) {
+// canPin: chỉ chủ bài viết mới thấy nút Ghim trên từng bình luận
+// onPinChanged: ghim xong thì báo lên PostModal để fetch lại (bình luận ghim được đưa lên đầu)
+export default function CommentList({ postId, refreshKey, onReply, onClose, canPin = false, onPinChanged }) {
   var { t } = useLanguage()
   const { data, isLoading } = useQuery({
     queryKey: ['comments', postId, refreshKey],
@@ -32,7 +34,14 @@ export default function CommentList({ postId, refreshKey, onReply, onClose }) {
         return (
           // Bọc thêm một lớp chỉ để chạy hiệu ứng so le — không đụng vào CommentItem
           <Box key={comment._id} sx={staggerIn(i, { step: 30, maxDelay: 200 })}>
-            <CommentItem comment={comment} postId={postId} refreshKey={refreshKey} onReply={onReply} onClose={onClose} />
+            <CommentItem
+              comment={comment}
+              refreshKey={refreshKey}
+              onReply={onReply}
+              onClose={onClose}
+              canPin={canPin}
+              onPinChanged={onPinChanged}
+            />
           </Box>
         )
       })}

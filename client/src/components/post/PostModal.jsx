@@ -11,7 +11,7 @@
 // Modal sửa caption là một Dialog lồng bên trong. MUI tự xếp Dialog mở sau
 //   nằm trên Dialog mở trước nên không cần tự chỉnh z-index
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -40,8 +40,14 @@ import CaptionText from '../common/CaptionText'
 import CommentList from '../comment/CommentList'
 import ConfirmModal from '../common/ConfirmModal'
 import ReportModal from '../common/ReportModal'
+import SaveToCollectionModal from './SaveToCollectionModal'
 import { timeAgo } from '../../utils/formatTime'
-import { likePost, unlikePost, deletePost, updatePost, savePost, unsavePost } from '../../features/post/postAPI'
+import {
+  likePost, unlikePost, deletePost, updatePost, savePost, unsavePost,
+  archivePost, unarchivePost, getPhotoTags, addPhotoTag, removePhotoTag,
+} from '../../features/post/postAPI'
+import PhotoTagLayer from './PhotoTagLayer'
+import PhotoTagPicker from './PhotoTagPicker'
 import { formatNumber } from '../../utils/formatNumber'
 import { mediaNavSx, actionBtnSx, likedSx } from './postStyles'
 
@@ -67,7 +73,9 @@ function BookmarkIcon({ filled }) {
   )
 }
 
-export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedChange }) {
+// onArchivedChange(postId, isArchived): báo cho trang cha biết bài vừa đổi trạng thái lưu trữ,
+// vì bài sẽ rời khỏi danh sách đang xem (tab Bài viết hoặc tab Lưu trữ)
+export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedChange, onArchivedChange }) {
   var { user } = useAuth()
   var { t } = useLanguage()
   var [liked, setLiked] = useState(post.isLiked || false)
@@ -82,12 +90,26 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
   var [showConfirmDelete, setShowConfirmDelete] = useState(false)
   var [showEdit, setShowEdit] = useState(false)
   var [showReport, setShowReport] = useState(false)
+  // Dialog chọn bộ sưu tập khi lưu bài
+  var [showSaveCollection, setShowSaveCollection] = useState(false)
   var [editCaption, setEditCaption] = useState(post.caption || '')
   var [caption, setCaption] = useState(post.caption || '')
   var [editLoading, setEditLoading] = useState(false)
   var [mediaIndex, setMediaIndex] = useState(0)
   var [showLikeBurst, setShowLikeBurst] = useState(false)
   var commentInputRef = useRef(null)
+
+  // --- Gắn thẻ người trên ảnh ---
+  var [photoTags, setPhotoTags] = useState([])
+  var [showTags, setShowTags] = useState(false)
+  // tagging: chủ bài đang chờ bấm chọn vị trí trên ảnh
+  var [tagging, setTagging] = useState(false)
+  // Toạ độ vừa bấm, giữ lại để gắn cho người được chọn ở dialog
+  var [pendingPosition, setPendingPosition] = useState(null)
+  // Giữ chính thẻ <img> để PhotoTagLayer đo được vùng ảnh thật
+  var [imgEl, setImgEl] = useState(null)
+  // Đổi giá trị để lớp phủ đo lại: ảnh vừa tải xong hoặc vừa chuyển sang ảnh khác
+  var [imgRefreshToken, setImgRefreshToken] = useState(0)
 
   var myId = String(user?._id || user?.id || '')
   var postOwnerId = String(post.user?._id || post.user?.id || '')
@@ -107,10 +129,81 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
   var thumbnailUrl = currentMedia?.thumbnailUrl || post.thumbnailUrl || ''
   var hasManyMedia = mediaItems.length > 1
 
+  // Chỉ gắn thẻ được lên ảnh, và ảnh đó phải là media thật trong DB (mediaItems dựng tạm
+  // từ post.mediaUrl thì không có _id nên không gắn được)
+  var currentMediaId = currentMedia?._id || null
+  var canTagPhoto = isOwner && mediaType === 'image' && !!currentMediaId
+
+  // Bài carousel: mỗi ảnh giữ bộ thẻ riêng nên phải lọc theo ảnh đang xem
+  var tagsOfCurrentMedia = photoTags.filter(function (tag) {
+    return String(tag.mediaId) === String(currentMediaId)
+  })
+
+  // Tải danh sách thẻ một lần khi mở bài
+  useEffect(function () {
+    var stillMounted = true
+
+    getPhotoTags(post._id)
+      .then(function (res) {
+        if (stillMounted) setPhotoTags(res.data?.tags || [])
+      })
+      .catch(function (error) {
+        console.error('Không tải được danh sách gắn thẻ', error)
+      })
+
+    return function () { stillMounted = false }
+  }, [post._id])
+
   // Đóng menu trước rồi mới chạy hành động, tránh menu còn mở đè lên modal vừa bật
   function runFromMenu(action) {
     setMenuAnchor(null)
     action()
+  }
+
+  async function reloadPhotoTags() {
+    try {
+      var res = await getPhotoTags(post._id)
+      setPhotoTags(res.data?.tags || [])
+    } catch (error) {
+      console.error('Không tải lại được danh sách gắn thẻ', error)
+    }
+  }
+
+  // Bấm xong một điểm trên ảnh: thoát chế độ gắn thẻ và mở dialog chọn người
+  function handlePickPosition(ratioX, ratioY) {
+    setPendingPosition({ x: ratioX, y: ratioY })
+    setTagging(false)
+  }
+
+  async function handleSelectTagUser(selectedUser) {
+    if (!pendingPosition || !currentMediaId) return
+
+    try {
+      await addPhotoTag(post._id, currentMediaId, selectedUser._id, pendingPosition.x, pendingPosition.y)
+      toast.success(t.post.tagAdded)
+      // Gắn xong thì bật hiển thị để người dùng thấy ngay kết quả
+      setShowTags(true)
+      await reloadPhotoTags()
+    } catch (error) {
+      toast.error(error.response?.data?.message || t.post.tagFailed)
+    } finally {
+      setPendingPosition(null)
+    }
+  }
+
+  async function handleRemoveTag(tag) {
+    try {
+      await removePhotoTag(post._id, tag._id)
+      toast.success(t.post.tagRemoved)
+      await reloadPhotoTags()
+    } catch (error) {
+      toast.error(error.response?.data?.message || t.post.tagRemoveFailed)
+    }
+  }
+
+  // Chủ bài gỡ được thẻ bất kỳ, người bị gắn thẻ gỡ được thẻ của chính mình
+  function canRemoveTag(tag) {
+    return isOwner || String(tag.user?._id || '') === myId
   }
 
   function goPrevMedia(e) {
@@ -186,6 +279,18 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
       onClose()
     } catch {
       toast.error(t.post.deleteFailed)
+    }
+  }
+
+  // Lưu trữ / bỏ lưu trữ — đóng modal sau khi xong vì bài không còn thuộc danh sách đang mở
+  async function handleToggleArchive() {
+    try {
+      post.isArchived ? await unarchivePost(post._id) : await archivePost(post._id)
+      toast.success(post.isArchived ? t.post.unarchived : t.post.archived)
+      if (onArchivedChange) onArchivedChange(post._id, !post.isArchived)
+      onClose()
+    } catch {
+      toast.error(t.post.archiveFailed)
     }
   }
 
@@ -300,6 +405,8 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
                 controls={mediaType === 'video'}
                 autoPlay={mediaType === 'video'}
                 muted={mediaType === 'video'}
+                ref={setImgEl}
+                onLoad={function () { setImgRefreshToken(function (n) { return n + 1 }) }}
                 sx={{
                   width: '100%',
                   height: '100%',
@@ -308,6 +415,66 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
                   display: 'block',
                 }}
               />
+
+              {/* Lớp phủ người được gắn thẻ — chỉ dựng trên ảnh, video không gắn thẻ được */}
+              {mediaType === 'image' && (
+                <PhotoTagLayer
+                  imgEl={imgEl}
+                  // Kèm mediaIndex vì ảnh đã nằm trong cache có thể không bắn onLoad,
+                  // lúc đó chỉ dựa vào imgRefreshToken thì lớp phủ giữ nguyên vùng đo của ảnh cũ
+                  refreshToken={String(imgRefreshToken) + '-' + mediaIndex}
+                  tags={tagsOfCurrentMedia}
+                  visible={showTags}
+                  tagging={tagging}
+                  onPickPosition={handlePickPosition}
+                  canRemoveTag={canRemoveTag}
+                  onRemoveTag={handleRemoveTag}
+                />
+              )}
+
+              {/* Đường thoát khỏi chế độ gắn thẻ: lớp phủ đang nuốt hết click trên ảnh,
+                  không có nút này thì phải bấm đúng một điểm mới ra được */}
+              {tagging && (
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={function (e) {
+                    e.stopPropagation()
+                    setTagging(false)
+                  }}
+                  sx={{
+                    position: 'absolute', right: 16, bottom: 14,
+                    px: 1.5, py: 0.5, borderRadius: 1,
+                    border: 'none', cursor: 'pointer',
+                    bgcolor: 'rgba(255,255,255,.9)', color: '#000',
+                    fontSize: 13, fontWeight: 600,
+                  }}
+                >
+                  {t.post.tagDone}
+                </Box>
+              )}
+
+              {/* Nút bật/tắt hiện thẻ — chỉ mọc lên khi ảnh này thật sự có thẻ */}
+              {tagsOfCurrentMedia.length > 0 && !tagging && (
+                <Box
+                  component="button"
+                  type="button"
+                  aria-label={showTags ? t.post.hideTags : t.post.showTags}
+                  onClick={function (e) {
+                    e.stopPropagation()
+                    setShowTags(function (open) { return !open })
+                  }}
+                  sx={{
+                    position: 'absolute', left: 16, bottom: 14,
+                    width: 30, height: 30, p: 0,
+                    borderRadius: '50%', border: 'none', cursor: 'pointer',
+                    bgcolor: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 14,
+                    opacity: showTags ? 1 : 0.75,
+                  }}
+                >
+                  🏷️
+                </Box>
+              )}
 
               {/* Trái tim phóng to khi double-click vào media */}
               {showLikeBurst && (
@@ -455,6 +622,15 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                 transformOrigin={{ vertical: 'top', horizontal: 'right' }}
               >
+                {/* Lưu vào bộ sưu tập cụ thể — nút bookmark vẫn lưu nhanh vào mục mặc định */}
+                <MenuItem
+                  key="save-collection"
+                  onClick={function () { runFromMenu(function () { setShowSaveCollection(true) }) }}
+                >
+                  🔖 {t.post.saveToCollection}
+                </MenuItem>
+                <Divider key="div-save-collection" />
+
                 {isOwner
                   ? [
                       <MenuItem
@@ -462,6 +638,20 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
                         onClick={function () { runFromMenu(function () { setEditCaption(caption); setShowEdit(true) }) }}
                       >
                         ✏️ {t.post.editCaption}
+                      </MenuItem>,
+                      canTagPhoto ? (
+                        <MenuItem
+                          key="tag-people"
+                          onClick={function () { runFromMenu(function () { setTagging(true) }) }}
+                        >
+                          🏷️ {t.post.tagPeople}
+                        </MenuItem>
+                      ) : null,
+                      <MenuItem
+                        key="archive"
+                        onClick={function () { runFromMenu(handleToggleArchive) }}
+                      >
+                        🗄️ {post.isArchived ? t.post.unarchivePost : t.post.archivePost}
                       </MenuItem>,
                       <Divider key="div" />,
                       <MenuItem
@@ -497,7 +687,14 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
                 </Typography>
               </Box>
             )}
-            <CommentList postId={post._id} refreshKey={refreshKey} onReply={handleReply} onClose={onClose} />
+            <CommentList
+              postId={post._id}
+              refreshKey={refreshKey}
+              onReply={handleReply}
+              onClose={onClose}
+              canPin={isOwner}
+              onPinChanged={function () { setRefreshKey(function (k) { return k + 1 }) }}
+            />
           </Box>
 
           {/* Khu hành động dưới cùng */}
@@ -650,6 +847,28 @@ export default function PostModal({ post, onClose, onDelete, onUpdated, onSavedC
           onClose={function () { setShowReport(false) }}
         />
       )}
+
+      {showSaveCollection && (
+        <SaveToCollectionModal
+          targetId={post._id}
+          targetType="post"
+          isSaved={saved}
+          onClose={function () { setShowSaveCollection(false) }}
+          onSaved={function () {
+            setSaved(true)
+            // Báo cho trang cha (Profile) biết bài này giờ đã nằm trong mục đã lưu
+            if (onSavedChange) onSavedChange(post._id, true)
+          }}
+        />
+      )}
+
+      {/* Chọn người cho điểm vừa bấm trên ảnh — đóng dialog là bỏ luôn điểm đó */}
+      <PhotoTagPicker
+        open={!!pendingPosition}
+        onClose={function () { setPendingPosition(null) }}
+        onSelect={handleSelectTagUser}
+        excludeUserIds={tagsOfCurrentMedia.map(function (tag) { return tag.user?._id })}
+      />
     </>
   )
 }
